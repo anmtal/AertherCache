@@ -1,0 +1,584 @@
+/* ==========================================================================
+   AetherCache Core Simulator Engine - Interactive Computation & Rendering
+   ========================================================================== */
+
+document.addEventListener('DOMContentLoaded', () => {
+
+    // --- State & Constants ---
+    const MODELS = {
+        'claude-sonnet': {
+            name: 'Claude 3.5 Sonnet',
+            provider: 'Anthropic',
+            rateInput: 3.00,      // per million
+            rateCacheRead: 0.30,  // per million (90% discount)
+            rateCacheWrite: 3.75, // per million (25% penalty)
+            rateOutput: 15.00,    // per million
+            tip: 'Anthropic prompt caching is extremely powerful. Static system prompts and context files at the beginning of your prompt are read at a 90% discount after the first query.'
+        },
+        'gpt-4o': {
+            name: 'GPT-4o',
+            provider: 'OpenAI',
+            rateInput: 5.00,
+            rateCacheRead: 2.50,  // per million (50% discount)
+            rateCacheWrite: 5.00, // per million (no penalty)
+            rateOutput: 15.00,
+            tip: 'OpenAI automatically caches prompts in 1024-token blocks. Prefix matching must be strictly identical from the very beginning of the prompt to trigger the 50% discount.'
+        },
+        'gemini-pro': {
+            name: 'Gemini 1.5 Pro',
+            provider: 'Google',
+            rateInput: 1.25,
+            rateCacheRead: 0.625, // per million (50% discount)
+            rateCacheWrite: 1.25, // per million (no penalty)
+            rateOutput: 5.00,
+            tip: 'Google Gemini prompt caching is highly cost-effective for extremely large contexts (over 32k tokens), offering a flat 50% discount on cache hits.'
+        }
+    };
+
+    // --- DOM Elements ---
+    const modelSelector = document.getElementById('model-selector');
+    
+    // Model Rate Labels
+    const rateInputEl = document.getElementById('rate-input');
+    const rateCacheReadEl = document.getElementById('rate-cache-read');
+    const rateCacheWriteEl = document.getElementById('rate-cache-write');
+
+    // Sliders
+    const sliderQueries = document.getElementById('slider-queries');
+    const sliderStatic = document.getElementById('slider-static');
+    const sliderDynamic = document.getElementById('slider-dynamic');
+    const sliderTurns = document.getElementById('slider-turns');
+
+    // Slider Text values
+    const txtQueries = document.getElementById('val-queries-txt');
+    const txtStatic = document.getElementById('val-static-txt');
+    const txtDynamic = document.getElementById('val-dynamic-txt');
+    const txtTurns = document.getElementById('val-turns-txt');
+
+    // Financial Cards
+    const costStandardEl = document.getElementById('cost-standard');
+    const costOptimizedEl = document.getElementById('cost-optimized');
+    const roiSavingsEl = document.getElementById('roi-savings');
+    
+    // Progress Ratings
+    const pctCachingProgress = document.getElementById('pct-caching-progress');
+    const pctCachingTxt = document.getElementById('pct-caching-txt');
+    const pctLatencyProgress = document.getElementById('pct-latency-progress');
+    const pctLatencyTxt = document.getElementById('pct-latency-txt');
+
+    // Text descriptions
+    const roiPctEl = document.getElementById('roi-pct');
+    const roiDevValueEl = document.getElementById('roi-dev-value');
+    const tokenLadderEl = document.getElementById('token-ladder');
+    const refactorBadgeEl = document.getElementById('refactor-badge');
+
+    // Canvas Editors
+    const editorDirty = document.getElementById('editor-dirty');
+    const editorClean = document.getElementById('editor-clean');
+
+    // SDK Tab Actions
+    const tabPy = document.getElementById('tab-py');
+    const tabNode = document.getElementById('tab-node');
+    const codeSnippetEl = document.getElementById('code-snippet');
+    const copyCodeBtn = document.getElementById('copy-code-btn');
+    const sdkTipTextEl = document.getElementById('sdk-tip-text');
+
+    let activeLang = 'python';
+
+    // --- Simulation Mathematics ---
+    function updateSimulation() {
+        const selectedModelKey = modelSelector.value;
+        const model = MODELS[selectedModelKey];
+
+        // Gather numeric slider values
+        const monthlyQueries = parseInt(sliderQueries.value, 10);
+        const staticTokens = parseInt(sliderStatic.value, 10);
+        const dynamicTokens = parseInt(sliderDynamic.value, 10);
+        const turnsCount = parseInt(sliderTurns.value, 10);
+
+        // Update Slider indicator values on DOM
+        txtQueries.textContent = monthlyQueries.toLocaleString();
+        txtStatic.textContent = staticTokens.toLocaleString();
+        txtDynamic.textContent = dynamicTokens.toLocaleString();
+        txtTurns.textContent = turnsCount.toString();
+
+        // Update Model rates DOM
+        rateInputEl.textContent = `$${model.rateInput.toFixed(2)}`;
+        rateCacheReadEl.textContent = `$${model.rateCacheRead.toFixed(2)}`;
+        rateCacheWriteEl.textContent = `$${model.rateCacheWrite.toFixed(2)}`;
+
+        // Average model output per turn (800 tokens or dynamic * 1.5)
+        const avgOutputTokens = Math.max(800, Math.round(dynamicTokens * 1.5));
+
+        /* --- Cost Formula Calculation ---
+           1 conversation has T turns.
+           Round t (from 1 to T):
+           - In standard non-cached architecture, input contains:
+             S (static) + (t - 1) * (D + R) + D.
+           - In AetherCache optimized architecture:
+             S is cached.
+             Round 1: S is written (S at write rate) + D at standard rate.
+             Round 2+: S is read from cache (S at read rate) + previous dynamic conversation items read at standard input rate.
+        */
+
+        let standardInputTokensSum = 0;
+        let standardOutputTokensSum = 0;
+
+        let optimizedInputStandardSum = 0;
+        let optimizedInputCacheReadSum = 0;
+        let optimizedInputCacheWriteSum = 0;
+        let optimizedOutputTokensSum = 0;
+
+        // Cumulative storage arrays for rendering conversation rounds
+        const roundData = [];
+
+        for (let t = 1; t <= turnsCount; t++) {
+            // Previous dialogue tokens in input: (t-1) rounds of (dynamic user request + output response)
+            const prevDialogueTokens = (t - 1) * (dynamicTokens + avgOutputTokens);
+            
+            // Standard total input tokens for this turn
+            const stdInputTokens = staticTokens + prevDialogueTokens + dynamicTokens;
+            standardInputTokensSum += stdInputTokens;
+            standardOutputTokensSum += avgOutputTokens;
+
+            // Optimized prompt caching calculation
+            let optInputCached = 0;
+            let optInputWrite = 0;
+            let optInputStandard = 0;
+
+            if (t === 1) {
+                // First turn: Caching write occurs for the static system context
+                optInputWrite = staticTokens;
+                optInputStandard = dynamicTokens;
+            } else {
+                // Subsequent turns: static context is read directly from cache prefix
+                optInputCached = staticTokens;
+                // Previous turns dialog history + current turn user message are dynamic and read standard
+                optInputStandard = prevDialogueTokens + dynamicTokens;
+            }
+
+            optimizedInputStandardSum += optInputStandard;
+            optimizedInputCacheReadSum += optInputCached;
+            optimizedInputCacheWriteSum += optInputWrite;
+            optimizedOutputTokensSum += avgOutputTokens;
+
+            // Calculate cost for this specific turn in single conversation run
+            const turnStdCost = (stdInputTokens * model.rateInput + avgOutputTokens * model.rateOutput) / 1000000;
+            const turnOptCost = (optInputStandard * model.rateInput + optInputCached * model.rateCacheRead + optInputWrite * model.rateCacheWrite + avgOutputTokens * model.rateOutput) / 1000000;
+
+            roundData.push({
+                roundNum: t,
+                standardInput: stdInputTokens,
+                optimizedCached: optInputCached,
+                optimizedWrite: optInputWrite,
+                optimizedStandard: optInputStandard,
+                output: avgOutputTokens,
+                stdCost: turnStdCost,
+                optCost: turnOptCost
+            });
+        }
+
+        // Aggregate monthly costs
+        // Note: Monthly Queries represents monthly CONVERSATION sessions.
+        const totalStandardCostMonthly = (standardInputTokensSum * model.rateInput + standardOutputTokensSum * model.rateOutput) / 1000000 * monthlyQueries;
+        const totalOptimizedCostMonthly = (optimizedInputStandardSum * model.rateInput + optimizedInputCacheReadSum * model.rateCacheRead + optimizedInputCacheWriteSum * model.rateCacheWrite + optimizedOutputTokensSum * model.rateOutput) / 1000000 * monthlyQueries;
+
+        const totalSavingsMonthly = Math.max(0, totalStandardCostMonthly - totalOptimizedCostMonthly);
+        const savingsPercentage = totalStandardCostMonthly > 0 ? (totalSavingsMonthly / totalStandardCostMonthly) * 100 : 0;
+
+        // Render values to DOM
+        costStandardEl.textContent = `$${Math.round(totalStandardCostMonthly).toLocaleString()}`;
+        costOptimizedEl.textContent = `$${Math.round(totalOptimizedCostMonthly).toLocaleString()}`;
+        roiSavingsEl.textContent = `$${Math.round(totalSavingsMonthly).toLocaleString()}`;
+        refactorBadgeEl.textContent = `-${Math.round(savingsPercentage)}% Cost`;
+
+        // Cache Hit Ratio estimate (percentage of context cached over overall input tokens)
+        const totalInputTokensSum = standardInputTokensSum;
+        const totalCachedInputSum = optimizedInputCacheReadSum;
+        const cacheHitRatio = totalInputTokensSum > 0 ? (totalCachedInputSum / totalInputTokensSum) * 100 : 0;
+
+        // Update Caching progress UI
+        pctCachingTxt.textContent = `${Math.round(cacheHitRatio)}%`;
+        const dashArrayCaching = `${Math.round(cacheHitRatio)}, 100`;
+        pctCachingProgress.setAttribute('stroke-dasharray', dashArrayCaching);
+
+        // Latency reduction approximation (Cached tokens read up to 4x faster)
+        // Average speed boost is highly proportional to cache hit percentage
+        const latencyReduction = cacheHitRatio * 0.85; // up to 85% latency drop
+        pctLatencyTxt.textContent = `${Math.round(latencyReduction)}%`;
+        const dashArrayLatency = `${Math.round(latencyReduction)}, 100`;
+        pctLatencyProgress.setAttribute('stroke-dasharray', dashArrayLatency);
+
+        // Financial SaaS ROI text highlights
+        // Standard SaaS is $99/mo
+        const SAAS_SUB = 99.00;
+        const netRoi = SAAS_SUB > 0 ? (totalSavingsMonthly / SAAS_SUB) * 100 : 0;
+        roiPctEl.textContent = `${Math.round(netRoi).toLocaleString()}%`;
+
+        // 1 junior dev monthly cost equivalent (~$3,000/mo)
+        const juniorDevValue = totalSavingsMonthly / 3000;
+        roiDevValueEl.textContent = juniorDevValue.toFixed(1);
+
+        // --- Render Token Accumulation Graph ---
+        renderTokenLadder(roundData, staticTokens);
+
+        // --- Render Prompt editors ---
+        renderPromptEditors(staticTokens);
+
+        // --- Render Code snippets ---
+        renderCodeSnippets(selectedModelKey, staticTokens);
+    }
+
+    // --- Graph Rendering Engine ---
+    function renderTokenLadder(roundData, staticTokens) {
+        tokenLadderEl.innerHTML = '';
+
+        // Find max tokens in standard list to scale elements proportionally
+        const maxTokens = Math.max(...roundData.map(r => r.standardInput + r.output));
+
+        roundData.forEach(round => {
+            const ladderRound = document.createElement('div');
+            ladderRound.className = 'ladder-round';
+
+            const roundLabel = document.createElement('span');
+            roundLabel.className = 'round-num';
+            roundLabel.textContent = `Turn ${round.roundNum}`;
+
+            const track = document.createElement('div');
+            track.className = 'round-bar-track';
+
+            // Calculate percentage segments
+            const cachedPct = (round.optimizedCached / maxTokens) * 100;
+            const writePct = (round.optimizedWrite / maxTokens) * 100;
+            const standardInputPct = (round.optimizedStandard / maxTokens) * 100;
+            const outputPct = (round.output / maxTokens) * 100;
+
+            // Segment 1: Cached static context (Emerald)
+            if (cachedPct > 0) {
+                const segCached = document.createElement('div');
+                segCached.className = 'bar-segment bg-emerald';
+                segCached.style.width = `${cachedPct}%`;
+                segCached.setAttribute('data-tooltip', `Cached: ${round.optimizedCached.toLocaleString()} tokens ($${(round.optimizedCached * MODELS[modelSelector.value].rateCacheRead / 1000000).toFixed(4)})`);
+                track.appendChild(segCached);
+            }
+
+            // Segment 2: Caching Write overhead (Cyan, only round 1)
+            if (writePct > 0) {
+                const segWrite = document.createElement('div');
+                segWrite.className = 'bar-segment bg-cyan';
+                segWrite.style.width = `${writePct}%`;
+                segWrite.setAttribute('data-tooltip', `Cache Write: ${round.optimizedWrite.toLocaleString()} tokens ($${(round.optimizedWrite * MODELS[modelSelector.value].rateCacheWrite / 1000000).toFixed(4)})`);
+                track.appendChild(segWrite);
+            }
+
+            // Segment 3: Dynamic user prompts & history (Coral)
+            if (standardInputPct > 0) {
+                const segStdInput = document.createElement('div');
+                segStdInput.className = 'bar-segment bg-coral';
+                segStdInput.style.width = `${standardInputPct}%`;
+                segStdInput.setAttribute('data-tooltip', `Dynamic Input: ${round.optimizedStandard.toLocaleString()} tokens ($${(round.optimizedStandard * MODELS[modelSelector.value].rateInput / 1000000).toFixed(4)})`);
+                track.appendChild(segStdInput);
+            }
+
+            // Segment 4: Model response output (translucent gray/white segment for visualization)
+            if (outputPct > 0) {
+                const segOutput = document.createElement('div');
+                segOutput.className = 'bar-segment';
+                segOutput.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
+                segOutput.style.width = `${outputPct}%`;
+                segOutput.setAttribute('data-tooltip', `Response Output: ${round.output.toLocaleString()} tokens ($${(round.output * MODELS[modelSelector.value].rateOutput / 1000000).toFixed(4)})`);
+                track.appendChild(segOutput);
+            }
+
+            ladderRound.appendChild(roundLabel);
+            ladderRound.appendChild(track);
+            tokenLadderEl.appendChild(ladderRound);
+        });
+    }
+
+    // --- Side-by-Side Prompt Visualizer ---
+    function renderPromptEditors(staticTokens) {
+        // Construct visual representations
+        const kbSizeStr = `${Math.round(staticTokens / 200)} KB`;
+        
+        // Dirty HTML
+        editorDirty.innerHTML = `
+<span class="hl-header"># ❌ DYNAMIC METADATA BREAKS PREFIX</span>
+<span class="hl-danger">{{user_name = "Alex_Dev_99"}}</span>
+<span class="hl-danger">{{timestamp = "${new Date().toISOString()}"}}</span>
+
+<span class="hl-static"># --- MASSIVE STATIC REFERENCE DOCUMENTATION ---
+# Size: ${staticTokens.toLocaleString()} tokens (${kbSizeStr} of raw data)
+You are an advanced AI engineering partner. Your role is
+to strictly analyze code using the following developer rules...
+[Hundreds of lines of static coding specifications here]
+...
+# -----------------------------------------------</span>
+
+<span class="hl-success"># User's immediate query</span>
+<span class="hl-success">Query: "Explain prompt caching rules"</span>
+        `.trim();
+
+        // Clean HTML
+        editorClean.innerHTML = `
+<span class="hl-header">#  STATIC CONTEXT AT TOP (CACHED PREFIX)</span>
+<span class="hl-static"># --- MASSIVE STATIC REFERENCE DOCUMENTATION ---
+# Size: ${staticTokens.toLocaleString()} tokens (${kbSizeStr} of raw data)
+You are an advanced AI engineering partner. Your role is
+to strictly analyze code using the following developer rules...
+[Hundreds of lines of static coding specifications here]
+...
+# -----------------------------------------------</span>
+
+<span class="hl-header">#  DYNAMIC VARIABLES INSERTED AT END</span>
+<span class="hl-success">{{user_name = "Alex_Dev_99"}}</span>
+<span class="hl-success">{{timestamp = "${new Date().toISOString()}"}}</span>
+<span class="hl-success">Query: "Explain prompt caching rules"</span>
+        `.trim();
+    }
+
+    // --- SDK Code Generator Templates ---
+    function renderCodeSnippets(modelKey, staticTokens) {
+        const model = MODELS[modelKey];
+        sdkTipTextEl.textContent = model.tip;
+
+        let pyCode = '';
+        let nodeCode = '';
+
+        if (modelKey === 'claude-sonnet') {
+            pyCode = `
+import anthropic
+
+client = anthropic.Anthropic()
+
+# 💡 AetherCache Caching Architecture
+# Move the massive static context to the SYSTEM block
+# and set the 'ephemeral' cache_control parameter.
+
+response = client.beta.prompt_caching.messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1000,
+    system=[
+        {
+            "type": "text",
+            "text": "System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]",
+            "cache_control": {"type": "ephemeral"} # 🟢 System Cached prefix
+        }
+    ],
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "User metadata: Alex_Dev_99\\nUser Question: Explain prompt caching rules"
+                }
+            ]
+        }
+    ]
+)
+print(response.content[0].text)
+            `.trim();
+
+            nodeCode = `
+import Anthropic from '@anthropic-ai/sdk';
+
+const anthropic = new Anthropic();
+
+// 💡 AetherCache Caching Architecture
+// Keep static context inside system blocks with cache_control type: 'ephemeral'
+async function main() {
+  const response = await anthropic.beta.promptCaching.messages.create({
+    model: 'claude-3-5-sonnet-20241022',
+    max_tokens: 1000,
+    system: [
+      {
+        type: 'text',
+        text: 'System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]',
+        cache_control: { type: 'ephemeral' } // 🟢 System Cached prefix
+      }
+    ],
+    messages: [
+      {
+        role: 'user',
+        content: 'User metadata: Alex_Dev_99\\nUser Question: Explain prompt caching rules'
+      }
+    ]
+  });
+  console.log(response.content[0].text);
+}
+main();
+            `.trim();
+        } else if (modelKey === 'gpt-4o') {
+            pyCode = `
+import openai
+
+client = openai.OpenAI()
+
+# 💡 OpenAI GPT-4o Prompt Caching is automatic!
+# But it only triggers in blocks of 1024 tokens.
+# To benefit, keep the dynamic variables strictly at the end,
+# and ensure the static system block at the top remains 100% identical.
+
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[
+        {
+            "role": "system",
+            "content": "System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]" # 🟢 Automatic cache match
+        },
+        {
+            "role": "user",
+            "content": "User metadata: Alex_Dev_99\\nUser Question: Explain prompt caching rules" # 🔴 Dynamic tail
+        }
+    ]
+)
+print(response.choices[0].message.content)
+            `.trim();
+
+            nodeCode = `
+import OpenAI from 'openai';
+
+const openai = new OpenAI();
+
+// 💡 OpenAI GPT-4o Prompt Caching is automatic!
+// Ensure the massive static block stays exactly identical
+// and keep all dynamic changes (username, date) at the tail end.
+async function main() {
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages: [
+      {
+        role: 'system',
+        content: 'System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]' // 🟢 Automatic cache match
+      },
+      {
+        role: 'user',
+        content: 'User metadata: Alex_Dev_99\\nUser Question: Explain prompt caching rules' // 🔴 Dynamic tail
+      }
+    ]
+  });
+  console.log(completion.choices[0].message.content);
+}
+main();
+            `.trim();
+        } else if (modelKey === 'gemini-pro') {
+            pyCode = `
+from google import genai
+from google.genai import types
+
+client = genai.Client()
+
+# 💡 Google Gemini Prompt Caching
+# Explicitly create a cached content resource for massive static data,
+# and link it to your active generation queries.
+
+# 1. Create a cached reference content resource
+cache = client.caches.create(
+    model="models/gemini-1.5-pro-002",
+    config=types.CreateCachedContentConfig(
+        contents=[
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text("System Rules... [Static Context: ${staticTokens.toLocaleString()} tokens]")]
+            )
+        ],
+        ttl="300s" # Expire cache in 5 minutes of idle
+    )
+)
+
+# 2. Query the model referencing the active cache ID
+response = client.models.generate_content(
+    model="models/gemini-1.5-pro-002",
+    contents="User metadata: Alex_Dev_99\\nUser Question: Explain prompt caching rules",
+    config=types.GenerateContentConfig(
+        cached_content=cache.name # 🟢 Links active cached context
+    )
+)
+print(response.text)
+            `.trim();
+
+            nodeCode = `
+import { GoogleGenAI } from '@google/genai';
+
+const ai = new GoogleGenAI();
+
+// 💡 Google Gemini Prompt Caching
+// Pre-create the cache reference, and link it via GenerateContentConfig
+async function main() {
+  // 1. Create the cache block
+  const cache = await ai.caches.create({
+    model: 'models/gemini-1.5-pro-002',
+    config: {
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: 'System Rules... [Static Context: ${staticTokens.toLocaleString()} tokens]' }]
+        }
+      ],
+      ttl: '300s' // Expire cache in 5 minutes of idle
+    }
+  });
+
+  // 2. Query Gemini utilizing the cache config pointer
+  const response = await ai.models.generateContent({
+    model: 'models/gemini-1.5-pro-002',
+    contents: 'User metadata: Alex_Dev_99\\nUser Question: Explain prompt caching rules',
+    config: {
+      cachedContent: cache.name // 🟢 Links active cached context
+    }
+  });
+  console.log(response.text);
+}
+main();
+            `.trim();
+        }
+
+        // Set compiled code block text
+        codeSnippetEl.textContent = activeLang === 'python' ? pyCode : nodeCode;
+    }
+
+    // --- Interactive Action Handlers ---
+
+    // Sliders
+    const inputs = [sliderQueries, sliderStatic, sliderDynamic, sliderTurns, modelSelector];
+    inputs.forEach(input => {
+        input.addEventListener('input', updateSimulation);
+    });
+
+    // SDK Code switcher
+    tabPy.addEventListener('click', () => {
+        tabPy.classList.add('active');
+        tabNode.classList.remove('active');
+        activeLang = 'python';
+        updateSimulation();
+    });
+
+    tabNode.addEventListener('click', () => {
+        tabNode.classList.add('active');
+        tabPy.classList.remove('active');
+        activeLang = 'node';
+        updateSimulation();
+    });
+
+    // Copy to clipboard
+    copyCodeBtn.addEventListener('click', () => {
+        const textToCopy = codeSnippetEl.textContent;
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            copyCodeBtn.classList.add('copied');
+            const btnSpan = copyCodeBtn.querySelector('span');
+            const originalText = btnSpan.textContent;
+            btnSpan.textContent = 'Copied!';
+            
+            setTimeout(() => {
+                copyCodeBtn.classList.remove('copied');
+                btnSpan.textContent = originalText;
+            }, 2000);
+        }).catch(err => {
+            console.error('Clipboard copy failed: ', err);
+        });
+    });
+
+    // Initial Trigger
+    updateSimulation();
+});
