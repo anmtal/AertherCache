@@ -35,7 +35,6 @@
             </div>
             
             <div class="header-actions">
-                <a href="#" class="about-nav-link" id="about-us-trigger">About Us</a>
                 <button class="login-btn" id="login-btn">Client Login</button>
                 <div class="user-profile" id="user-profile" style="display: none;">
                     <span class="user-avatar">U</span>
@@ -52,10 +51,6 @@
         <div id="landing-page-container">
         <!-- Hero Pitch Section -->
         <section class="hero-section">
-            <div class="hero-badge" id="about-banner-badge">
-                <span class="badge-dot"></span>
-                <span>About Us: The leading zero-code caching gateway that keeps native AI model caches warm 24/7, securing up to 90% API cost savings for clients.</span>
-            </div>
             <h2 class="hero-title">Cut Your AI API Bills By <span class="text-purple-glow">50% to 90%</span> Instantly</h2>
             <p class="hero-subtitle">
                 No complex prompt engineering. No code changes. Just paste your secure API key, turn on automatic caching protection, and watch your monthly spend drop.
@@ -65,202 +60,192 @@
         <!-- Main Dashboard Grid -->
         <main class="dashboard-grid">
             
-            <!-- COLUMN 1: SAVINGS CONFIGURATOR -->
-            <section class="dashboard-col col-left">
-                
-                <!-- Card 1: Configuration Center -->
-                <div class="glass-card config-card">
-                    <div class="card-header">
-                        <div class="card-icon cyan-bg">
-                            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
-                                <circle cx="12" cy="12" r="3"></circle>
-                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                            </svg>
-                        </div>
-                        <h3>1. Model & Spending Settings</h3>
+            <!-- Card 1: Configuration Center -->
+            <div class="glass-card config-card">
+                <div class="card-header">
+                    <div class="card-icon cyan-bg">
+                        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
                     </div>
-                    <div class="card-body">
-                        <!-- Selector -->
-                        <div class="form-group">
-                            <label for="model-selector">Select Your Active AI Model</label>
-                            <div class="select-wrapper">
-                                <select id="model-selector">
-                                    <option value="claude-sonnet" selected>Claude 3.5 Sonnet (Anthropic)</option>
-                                    <option value="claude-haiku">Claude 3.5 Haiku (Anthropic)</option>
-                                    <option value="claude-opus">Claude 3.0 Opus (Anthropic)</option>
-                                    <option value="gpt-4o">GPT-4o (OpenAI)</option>
-                                    <option value="gpt-4o-mini">GPT-4o-mini (OpenAI)</option>
-                                    <option value="gemini-pro">Gemini 1.5 Pro (Google)</option>
-                                    <option value="gemini-flash">Gemini 1.5 Flash (Google)</option>
-                                    <option value="deepseek-v3">DeepSeek-V3 (DeepSeek)</option>
-                                </select>
-                            </div>
+                    <h3>1. Model & Spending Settings</h3>
+                </div>
+                <div class="card-body">
+                    <!-- Selector -->
+                    <div class="form-group">
+                        <label for="model-selector">Select Your Active AI Model</label>
+                        <div class="select-wrapper">
+                            <select id="model-selector">
+                                <option value="claude-sonnet" selected>Claude 3.5 Sonnet (Anthropic)</option>
+                                <option value="claude-haiku">Claude 3.5 Haiku (Anthropic)</option>
+                                <option value="claude-opus">Claude 3.0 Opus (Anthropic)</option>
+                                <option value="gpt-4o">GPT-4o (OpenAI)</option>
+                                <option value="gpt-4o-mini">GPT-4o-mini (OpenAI)</option>
+                                <option value="gemini-pro">Gemini 1.5 Pro (Google)</option>
+                                <option value="gemini-flash">Gemini 1.5 Flash (Google)</option>
+                                <option value="deepseek-v3">DeepSeek-V3 (DeepSeek)</option>
+                            </select>
                         </div>
+                    </div>
 
-                        <!-- Current Spend Slider -->
-                        <div class="slider-group">
-                            <div class="slider-info">
-                                <span class="slider-label">Current Monthly AI API Spend</span>
-                                <span class="slider-value" id="val-spend-txt">$5,000</span>
-                            </div>
-                            <input type="range" id="slider-spend" min="500" max="50000" step="500" value="5000" class="custom-slider">
+                    <!-- Current Spend Slider -->
+                    <div class="slider-group">
+                        <div class="slider-info">
+                            <span class="slider-label">Current Monthly AI API Spend</span>
+                            <span class="slider-value" id="val-spend-txt">$5,000</span>
                         </div>
+                        <input type="range" id="slider-spend" min="500" max="50000" step="500" value="5000" class="custom-slider">
                     </div>
                 </div>
+            </div>
 
-                <!-- Card 2: Cache Protection Controls -->
-                <div class="glass-card control-card">
-                    <div class="card-header">
-                        <div class="card-icon purple-bg">
-                            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" class="heart-pulse-icon">
-                                <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-                            </svg>
+            <!-- Card 3: Live Cost Savings Board -->
+            <div class="glass-card roi-card">
+                <div class="card-header">
+                    <div class="card-icon emerald-bg">
+                        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+                            <line x1="12" y1="1" x2="12" y2="23"></line>
+                            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        </svg>
+                    </div>
+                    <h3>3. Estimated Financial Savings</h3>
+                    <span class="live-telemetry-badge">📊 Live Dashboard</span>
+                </div>
+                <div class="card-body">
+                    <!-- Primary Comparative Numbers Grid -->
+                    <div class="roi-stats-grid">
+                        <div class="roi-box border-red">
+                            <span class="roi-label">Standard Monthly API Cost</span>
+                            <span class="roi-num text-red" id="cost-standard">$5,000</span>
+                            <span class="roi-subtext">No Optimization Active</span>
                         </div>
-                        <h3>2. Active Cache Safeguards</h3>
-                        <div class="toggle-switch-wrapper">
-                            <span class="toggle-label" id="heartbeat-status-badge">PROTECTION ACTIVE</span>
-                            <label class="switch">
-                                <input type="checkbox" id="heartbeat-toggle" checked>
-                                <span class="slider-toggle round"></span>
-                            </label>
+                        <div class="roi-box border-emerald">
+                            <span class="roi-label">AetherCache Cost</span>
+                            <span class="roi-num text-emerald" id="cost-optimized">$1,500</span>
+                            <span class="roi-subtext">Optimized & Kept Warm</span>
+                        </div>
+                        <div class="roi-box highlight-box purple-border">
+                            <span class="roi-label text-purple-light">Total Monthly Savings</span>
+                            <span class="roi-num text-purple-glow" id="roi-savings">$3,500</span>
+                            <span class="roi-subtext text-purple-light">Reclaimed Margin</span>
                         </div>
                     </div>
-                    <div class="card-body">
-                        <!-- Cache State Dial -->
-                        <div class="cache-status-container">
-                            <div class="status-indicator-panel">
-                                <div class="temp-indicator-wrapper">
-                                    <span class="temp-label">CACHE INTEGRITY & HEAT</span>
-                                    <div class="progress-bar-track">
-                                        <div class="progress-bar-fill bg-emerald-gradient" id="cache-temp-fill" style="width: 100%;"></div>
-                                    </div>
+
+                    <!-- Savings Impact Section -->
+                    <div class="savings-impact-container">
+                        <div class="impact-title-wrapper">
+                            <span class="impact-badge">Savings Realized</span>
+                            <h4>Annual Savings: <span id="annual-savings" class="text-emerald-glow">$42,000 / year</span></h4>
+                        </div>
+                        <p class="impact-text">
+                            Over 12 months, this cash savings offsets the cost of our SaaS subscription by <span id="roi-multiplier" class="text-purple-glow font-bold">35.4x</span>.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 2: Cache Protection Controls -->
+            <div class="glass-card control-card">
+                <div class="card-header">
+                    <div class="card-icon purple-bg">
+                        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" class="heart-pulse-icon">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                        </svg>
+                    </div>
+                    <h3>2. Active Cache Safeguards</h3>
+                    <div class="toggle-switch-wrapper">
+                        <span class="toggle-label" id="heartbeat-status-badge">PROTECTION ACTIVE</span>
+                        <label class="switch">
+                            <input type="checkbox" id="heartbeat-toggle" checked>
+                            <span class="slider-toggle round"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Cache State Dial -->
+                    <div class="cache-status-container">
+                        <div class="status-indicator-panel">
+                            <div class="temp-indicator-wrapper">
+                                <span class="temp-label">CACHE INTEGRITY & HEAT</span>
+                                <div class="progress-bar-track">
+                                    <div class="progress-bar-fill bg-emerald-gradient" id="cache-temp-fill" style="width: 100%;"></div>
                                 </div>
-                                <div class="status-details">
-                                    <div class="status-pill state-warm" id="cache-state-pill">100% WARM & SECURED</div>
-                                    <div class="status-subtext" id="cache-state-text">Your cache is fully active. Caching discounts are successfully applied to all calls.</div>
-                                </div>
+                            </div>
+                            <div class="status-details">
+                                <div class="status-pill state-warm" id="cache-state-pill">100% WARM & SECURED</div>
+                                <div class="status-subtext" id="cache-state-text">Your cache is fully active. Caching discounts are successfully applied to all calls.</div>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- Safeguard Active Alert note -->
-                        <div class="safeguard-warning-pill">
-                            <span>⚠️ note:</span>
-                            <p>AetherPing is actively running in the background on our servers to sustain your caching discounts. No manual configuration is required.</p>
+                    <!-- Safeguard Active Alert note -->
+                    <div class="safeguard-warning-pill">
+                        <span>⚠️ note:</span>
+                        <p>AetherPing is actively running in the background on our servers to sustain your caching discounts. No manual configuration is required.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 4: Ultra-Simple Gateway Onboarding Settings -->
+            <div class="glass-card setup-card">
+                <div class="card-header">
+                    <div class="card-icon pink-bg">
+                        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                        </svg>
+                    </div>
+                    <h3>4. Secure Integration Settings</h3>
+                </div>
+                <div class="card-body">
+                    <!-- Key Input -->
+                    <div class="form-group">
+                        <label for="api-key-input">Enter Your AI API Key (Saved Securely)</label>
+                        <div class="api-input-wrapper">
+                            <input type="password" id="api-key-input" placeholder="Please sign in to configure key settings..." class="api-key-field">
+                            <span class="secure-badge">
+                                <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                </svg>
+                                AES-256 Secure
+                            </span>
+                        </div>
+                        <!-- Dynamic API Key Instructions Container -->
+                        <div class="key-instructions-box" id="key-instructions-container">
+                            <span class="key-instructions-title" id="key-instructions-title">HOW TO FIND YOUR ANTHROPIC KEY:</span>
+                            <p id="key-instructions-text">Go to your Anthropic Console -> API Keys -> click 'Create Key'.</p>
+                        </div>
+                        <span class="api-input-tip">Keys are encrypted on-the-fly. They are never kept in raw text or shared.</span>
+                    </div>
+
+                    <!-- Active Action Button -->
+                    <button class="live-test-btn" id="generate-btn">
+                        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        Save Key & Generate Base URL
+                    </button>
+
+                    <!-- Generated Integration Outcome -->
+                    <div class="integration-outcome" id="outcome-box" style="display: none;">
+                        <div class="outcome-success-badge">
+                            <span class="outcome-dot"></span>
+                            <span>Optimization Endpoint Active</span>
+                        </div>
+                        <p class="outcome-desc">
+                            Setup complete. Copy your unique Gateway URL and replace the default Base URL in your server settings:
+                        </p>
+                        <div class="url-card">
+                            <span class="gateway-url-text" id="gateway-url">https://api.aethercache.com/v1</span>
+                            <button class="copy-url-btn" id="copy-url-btn">
+                                <span>Copy URL</span>
+                            </button>
                         </div>
                     </div>
                 </div>
-
-            </section>
-
-            <!-- COLUMN 2: FINANCIAL RESULTS & ONBOARDING -->
-            <section class="dashboard-col col-right">
-                
-                <!-- Card 3: Live Cost Savings Board -->
-                <div class="glass-card roi-card">
-                    <div class="card-header">
-                        <div class="card-icon emerald-bg">
-                            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
-                                <line x1="12" y1="1" x2="12" y2="23"></line>
-                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                            </svg>
-                        </div>
-                        <h3>3. Estimated Financial Savings</h3>
-                        <span class="live-telemetry-badge">📊 Live Dashboard</span>
-                    </div>
-                    <div class="card-body">
-                        <!-- Primary Comparative Numbers Grid -->
-                        <div class="roi-stats-grid">
-                            <div class="roi-box border-red">
-                                <span class="roi-label">Standard Monthly API Cost</span>
-                                <span class="roi-num text-red" id="cost-standard">$5,000</span>
-                                <span class="roi-subtext">No Optimization Active</span>
-                            </div>
-                            <div class="roi-box border-emerald">
-                                <span class="roi-label">AetherCache Cost</span>
-                                <span class="roi-num text-emerald" id="cost-optimized">$1,500</span>
-                                <span class="roi-subtext">Optimized & Kept Warm</span>
-                            </div>
-                            <div class="roi-box highlight-box purple-border">
-                                <span class="roi-label text-purple-light">Total Monthly Savings</span>
-                                <span class="roi-num text-purple-glow" id="roi-savings">$3,500</span>
-                                <span class="roi-subtext text-purple-light">Reclaimed Margin</span>
-                            </div>
-                        </div>
-
-                        <!-- Savings Impact Section -->
-                        <div class="savings-impact-container">
-                            <div class="impact-title-wrapper">
-                                <span class="impact-badge">Savings Realized</span>
-                                <h4>Annual Savings: <span id="annual-savings" class="text-emerald-glow">$42,000 / year</span></h4>
-                            </div>
-                            <p class="impact-text">
-                                Over 12 months, this cash savings offsets the cost of our SaaS subscription by <span id="roi-multiplier" class="text-purple-glow font-bold">35.4x</span>.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Card 4: Ultra-Simple Gateway Onboarding Settings -->
-                <div class="glass-card setup-card">
-                    <div class="card-header">
-                        <div class="card-icon pink-bg">
-                            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
-                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                            </svg>
-                        </div>
-                        <h3>4. Secure Integration Settings</h3>
-                    </div>
-                    <div class="card-body">
-                        <!-- Key Input -->
-                        <div class="form-group">
-                            <label for="api-key-input">Enter Your AI API Key (Saved Securely)</label>
-                            <div class="api-input-wrapper">
-                                <input type="password" id="api-key-input" placeholder="Paste your API key (e.g., sk-...)" class="api-key-field">
-                                <span class="secure-badge">
-                                    <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none">
-                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                                    </svg>
-                                    AES-256 Secure
-                                </span>
-                            </div>
-                            <!-- Dynamic API Key Instructions Container -->
-                            <div class="key-instructions-box" id="key-instructions-container">
-                                <span class="key-instructions-title" id="key-instructions-title">HOW TO FIND YOUR ANTHROPIC KEY:</span>
-                                <p id="key-instructions-text">Go to your Anthropic Console -> API Keys -> click 'Create Key'.</p>
-                            </div>
-                            <span class="api-input-tip">Keys are encrypted on-the-fly. They are never kept in raw text or shared.</span>
-                        </div>
-
-                        <!-- Active Action Button -->
-                        <button class="live-test-btn" id="generate-btn">
-                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none">
-                                <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
-                            Save Key & Generate Base URL
-                        </button>
-
-                        <!-- Generated Integration Outcome -->
-                        <div class="integration-outcome" id="outcome-box" style="display: none;">
-                            <div class="outcome-success-badge">
-                                <span class="outcome-dot"></span>
-                                <span>Optimization Endpoint Active</span>
-                            </div>
-                            <p class="outcome-desc">
-                                Setup complete. Copy your unique Gateway URL and replace the default Base URL in your server settings:
-                            </p>
-                            <div class="url-card">
-                                <span class="gateway-url-text" id="gateway-url">https://api.aethercache.com/v1</span>
-                                <button class="copy-url-btn" id="copy-url-btn">
-                                    <span>Copy URL</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-            </section>
+            </div>
 
         </main>
 
@@ -481,6 +466,7 @@
         <footer class="app-footer">
             <p>&copy; 2026 AetherCache Inc. Designed under Premium Pair-Programming.</p>
             <div class="footer-links">
+                <a href="#" class="about-nav-link" id="about-us-trigger">About Us</a>
                 <span class="status-indicator-footer"><span class="dot bg-emerald"></span> B2B Value-Oriented Interface</span>
             </div>
         </footer>
