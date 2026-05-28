@@ -1370,6 +1370,46 @@ input:checked + .slider-toggle::before {
     border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+/* --- Customer Console Styles --- */
+.dashboard-welcome {
+    margin-bottom: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: slideIn 0.3s forwards;
+    padding-top: 10px;
+}
+
+.dashboard-welcome h2 {
+    font-size: 32px;
+    background: linear-gradient(135deg, #ffffff 30%, #a1a1aa 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-family: var(--font-heading);
+    font-weight: 800;
+}
+
+.dashboard-welcome p {
+    font-size: 15px;
+    color: var(--text-secondary);
+}
+
+select:disabled, 
+input:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    border-color: rgba(255, 255, 255, 0.04) !important;
+    background: rgba(255, 255, 255, 0.02) !important;
+    box-shadow: none !important;
+}
+
+.live-test-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
 .user-profile {
     display: flex;
     align-items: center;
@@ -1472,3 +1512,108 @@ input:checked + .slider-toggle::before {
     letter-spacing: 0.05em;
     margin-left: auto;
 }
+
+/* --- Centered Premium Console Layout Styles --- */
+.console-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    max-width: 640px;
+    margin: 60px auto;
+    padding: 0 16px;
+    animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.console-card-focused {
+    width: 100%;
+    background: rgba(12, 12, 17, 0.8) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7), 0 0 100px rgba(168, 85, 247, 0.04) !important;
+    padding: 40px !important;
+    gap: 26px !important;
+    backdrop-filter: blur(24px) !important;
+}
+
+.console-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    width: 100%;
+}
+
+.console-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.console-badge {
+    font-size: 9px;
+    font-weight: 850;
+    color: var(--color-purple);
+    background: rgba(168, 85, 247, 0.08);
+    border: 1px solid rgba(168, 85, 247, 0.2);
+    padding: 4px 10px;
+    border-radius: 6px;
+    letter-spacing: 0.1em;
+    width: fit-content;
+    text-transform: uppercase;
+}
+
+#dash-active-model-display {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--text-primary);
+    transition: var(--transition-smooth);
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+}
+
+.text-emerald-glow {
+    color: #34d399 !important;
+    text-shadow: 0 0 25px rgba(16, 185, 129, 0.45);
+}
+
+.console-subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 400;
+    transition: var(--transition-smooth);
+    line-height: 1.4;
+}
+
+.console-toggle {
+    margin-left: unset;
+    align-self: center;
+}
+
+.temp-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 4px;
+}
+
+.temp-percentage {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--color-emerald);
+    transition: var(--transition-smooth);
+}
+
+.console-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+    width: 100%;
+}
+
+.console-config-section {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    width: 100%;
+}
+

@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
             bestPingMinutes: 4.5,
             instructions: {
                 title: 'HOW TO FIND YOUR ANTHROPIC KEY:',
-                text: "Sign in to your Anthropic Console -> navigate to 'API Keys' in the sidebar -> click 'Create Key'. Copy your key immediately (it starts with 'sk-ant-')."
+                text: "Sign in to your Anthropic Console -> navigate to 'API Keys' in the sidebar -> click 'Create Key'. Copy your key immediately (starts with 'sk-ant-')."
             }
         },
         'claude-haiku': {
@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
             bestPingMinutes: 4.5,
             instructions: {
                 title: 'HOW TO FIND YOUR ANTHROPIC KEY:',
-                text: "Sign in to your Anthropic Console -> navigate to 'API Keys' in the sidebar -> click 'Create Key'. Copy your key immediately (it starts with 'sk-ant-')."
+                text: "Sign in to your Anthropic Console -> navigate to 'API Keys' in the sidebar -> click 'Create Key'. Copy your key immediately (starts with 'sk-ant-')."
             }
         },
         'claude-opus': {
@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
             bestPingMinutes: 4.5,
             instructions: {
                 title: 'HOW TO FIND YOUR ANTHROPIC KEY:',
-                text: "Sign in to your Anthropic Console -> navigate to 'API Keys' in the sidebar -> click 'Create Key'. Copy your key immediately (it starts with 'sk-ant-')."
+                text: "Sign in to your Anthropic Console -> navigate to 'API Keys' in the sidebar -> click 'Create Key'. Copy your key immediately (starts with 'sk-ant-')."
             }
         },
         'gpt-4o': {
@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
             bestPingMinutes: 9.0,
             instructions: {
                 title: 'HOW TO FIND YOUR OPENAI KEY:',
-                text: "Go to your OpenAI Platform Dashboard -> select the 'API Keys' tab -> click 'Create secret key'. Note your key securely (it starts with 'sk-proj-')."
+                text: "Go to your OpenAI Platform Dashboard -> select the 'API Keys' tab -> click 'Create secret key'. Note your key securely (starts with 'sk-proj-')."
             }
         },
         'gpt-4o-mini': {
@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
             bestPingMinutes: 9.0,
             instructions: {
                 title: 'HOW TO FIND YOUR OPENAI KEY:',
-                text: "Go to your OpenAI Platform Dashboard -> select the 'API Keys' tab -> click 'Create secret key'. Note your key securely (it starts with 'sk-proj-')."
+                text: "Go to your OpenAI Platform Dashboard -> select the 'API Keys' tab -> click 'Create secret key'. Note your key securely (starts with 'sk-proj-')."
             }
         },
         'gemini-pro': {
@@ -81,9 +81,12 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- DOM Selectors ---
+    const landingPageContainer = document.getElementById('landing-page-container');
+    const clientDashboardContainer = document.getElementById('client-dashboard-container');
+
+    // LANDING VIEW Selectors
     const modelSelector = document.getElementById('model-selector');
     const sliderSpend = document.getElementById('slider-spend');
-
     const txtSpend = document.getElementById('val-spend-txt');
 
     const costStandardEl = document.getElementById('cost-standard');
@@ -104,11 +107,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const gatewayUrlEl = document.getElementById('gateway-url');
     const copyUrlBtn = document.getElementById('copy-url-btn');
 
-    // Dynamic Key Finder Instructions Elements
     const keyInstructionsTitle = document.getElementById('key-instructions-title');
     const keyInstructionsText = document.getElementById('key-instructions-text');
 
-    // Authentication Elements
+    // DEDICATED CONSOLE VIEW Selectors
+    const dashModelSelector = document.getElementById('dash-model-selector');
+    const dashApiKeyInput = document.getElementById('dash-api-key-input');
+    const dashKeyInstructionsTitle = document.getElementById('dash-key-instructions-title');
+    const dashKeyInstructionsText = document.getElementById('dash-key-instructions-text');
+    const dashGenerateBtn = document.getElementById('dash-generate-btn');
+    const dashOutcomeBox = document.getElementById('dash-outcome-box');
+    const dashGatewayUrlEl = document.getElementById('dash-gateway-url');
+    const dashCopyUrlBtn = document.getElementById('dash-copy-url-btn');
+
+    const dashHeartbeatToggle = document.getElementById('dash-heartbeat-toggle');
+    const dashHeartbeatStatusBadge = document.getElementById('dash-heartbeat-status-badge');
+    const dashCacheTempFill = document.getElementById('dash-cache-temp-fill');
+    const dashCacheStatePill = document.getElementById('dash-cache-state-pill');
+    const dashCacheStateText = document.getElementById('dash-cache-state-text');
+
+    // Header & Auth Selectors
     const loginBtn = document.getElementById('login-btn');
     const userProfile = document.getElementById('user-profile');
     const userEmailText = document.getElementById('user-email-text');
@@ -123,10 +141,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const authSubmitBtn = document.getElementById('auth-submit-btn');
     const authToggleType = document.getElementById('auth-toggle-type');
 
-    // Live Telemetry Indicator
     const liveTelemetryBadge = document.querySelector('.live-telemetry-badge');
 
-    // --- Onboarding & State Management ---
+    // --- Authentication & Workspace state swapping ---
     function checkLoginState() {
         const loggedInUser = localStorage.getItem('aether_user');
         const isPaid = localStorage.getItem('aether_paid') === 'true';
@@ -137,23 +154,32 @@ document.addEventListener('DOMContentLoaded', () => {
             userEmailText.textContent = loggedInUser;
             document.querySelector('.user-avatar').textContent = loggedInUser.charAt(0).toUpperCase();
             
-            // Handle Gateway sync and key vault outcomes
-            const savedKey = localStorage.getItem('aether_key_vaulted');
-            if (savedKey && isPaid) {
-                apiKeyInput.value = savedKey;
-                generateGatewayURL(savedKey, loggedInUser);
+            if (isPaid) {
+                // Paid Lifecycle: Route to Separated Standalone Console Dashboard
+                landingPageContainer.style.display = 'none';
+                clientDashboardContainer.style.display = 'block';
+                syncClientDashboard();
             } else {
-                outcomeBox.style.display = 'none';
-                if (!isPaid) {
-                    apiKeyInput.value = '';
-                    apiKeyInput.placeholder = 'Please purchase a plan below to unlock secure gateway...';
+                // Logged in but unpaid: Keep on Landing Page to prompt payment
+                landingPageContainer.style.display = 'block';
+                clientDashboardContainer.style.display = 'none';
+                headerStatusContainer.style.display = 'block';
+                headerStatusContainer.innerHTML = '<span class="unpaid-badge">● Unpaid Account</span>';
+                
+                const savedKey = localStorage.getItem('aether_key_vaulted');
+                if (savedKey) {
+                    apiKeyInput.value = savedKey;
                 }
             }
         } else {
+            // Logged out Visitor: Show Landing Page
             loginBtn.style.display = 'block';
             userProfile.style.display = 'none';
-            outcomeBox.style.display = 'none';
             headerStatusContainer.style.display = 'none';
+            
+            landingPageContainer.style.display = 'block';
+            clientDashboardContainer.style.display = 'none';
+            
             apiKeyInput.value = '';
             apiKeyInput.placeholder = 'Please sign in to configure key settings...';
         }
@@ -175,28 +201,132 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSimulator();
     }
 
-    function generateGatewayURL(key, email) {
+    // --- Gateway URL Generator helper ---
+    function generateGatewayURL(key, email, isConsole = false) {
         const hashBase = email || 'guest';
         const uniqueHash = btoa(hashBase).substring(0, 8).toLowerCase();
+        const gatewayURL = `https://api.aethercache.com/v1/ae_live_${uniqueHash}`;
         
-        gatewayUrlEl.textContent = `https://api.aethercache.com/v1/ae_live_${uniqueHash}`;
-        outcomeBox.style.display = 'flex';
+        if (isConsole) {
+            dashGatewayUrlEl.textContent = gatewayURL;
+            dashOutcomeBox.style.display = 'flex';
+        } else {
+            gatewayUrlEl.textContent = gatewayURL;
+            outcomeBox.style.display = 'flex';
 
-        if (liveTelemetryBadge) {
-            liveTelemetryBadge.textContent = '📊 Gateway Sync Live';
-            liveTelemetryBadge.style.backgroundColor = 'rgba(6, 182, 212, 0.1)';
-            liveTelemetryBadge.style.color = '#06b6d4';
-            liveTelemetryBadge.style.borderColor = 'rgba(6, 182, 212, 0.2)';
+            if (liveTelemetryBadge) {
+                liveTelemetryBadge.textContent = '📊 Gateway Sync Live';
+                liveTelemetryBadge.style.backgroundColor = 'rgba(6, 182, 212, 0.1)';
+                liveTelemetryBadge.style.color = '#06b6d4';
+                liveTelemetryBadge.style.borderColor = 'rgba(6, 182, 212, 0.2)';
+            }
         }
     }
 
-    // --- Calculation and Simulation Engine ---
+    // --- Standalone Console Synchronization ---
+    function syncClientDashboard() {
+        const modelKey = dashModelSelector.value;
+        const model = MODELS[modelKey];
+        const loggedInUser = localStorage.getItem('aether_user');
+
+        // Update Active Model Display Heading
+        const dashActiveModelDisplay = document.getElementById('dash-active-model-display');
+        const dashStateDescription = document.getElementById('dash-state-description');
+        const dashTempPercentage = document.getElementById('dash-temp-percentage');
+
+        if (dashActiveModelDisplay) {
+            dashActiveModelDisplay.textContent = model.name;
+        }
+
+        // Dynamic Key Instructions per model
+        if (dashKeyInstructionsTitle && dashKeyInstructionsText) {
+            dashKeyInstructionsTitle.textContent = model.instructions.title;
+            dashKeyInstructionsText.textContent = model.instructions.text;
+        }
+
+        // Check vaulted credentials
+        const savedKey = localStorage.getItem('aether_key_vaulted');
+        if (savedKey) {
+            dashApiKeyInput.value = savedKey;
+            generateGatewayURL(savedKey, loggedInUser, true);
+        }
+
+        // Active State Safeguards (Toggle ON)
+        if (dashHeartbeatToggle && dashHeartbeatToggle.checked) {
+            headerStatusContainer.innerHTML = '<div class="active-badge-glowing"><span class="pulse-dot"></span><span>Secure Gateway Active</span></div>';
+            
+            dashHeartbeatStatusBadge.textContent = "PROTECTION ACTIVE";
+            dashHeartbeatStatusBadge.className = "toggle-label";
+
+            dashCacheTempFill.style.width = "100%";
+            dashCacheTempFill.className = "progress-bar-fill bg-emerald-gradient";
+            dashCacheStatePill.className = "status-pill state-warm";
+            dashCacheStatePill.textContent = "100% WARM & SECURED";
+            dashCacheStateText.textContent = `Active safeguards running. Heartbeats are automated every ${model.bestPingMinutes} minutes to keep ${model.name}'s cache permanently warm.`;
+            
+            if (dashTempPercentage) {
+                dashTempPercentage.textContent = "100%";
+                dashTempPercentage.style.color = "var(--color-emerald)";
+            }
+            if (dashStateDescription) {
+                dashStateDescription.textContent = "AetherPing active protection keeping your caches warm.";
+                dashStateDescription.style.color = "var(--color-emerald)";
+            }
+            if (dashActiveModelDisplay) {
+                dashActiveModelDisplay.classList.add('text-emerald-glow');
+            }
+
+            // GREY OUT and DISABLE inputs in Active state
+            dashModelSelector.disabled = true;
+            dashApiKeyInput.disabled = true;
+            dashGenerateBtn.disabled = true;
+            dashGenerateBtn.textContent = "🔒 Protection Active — Inputs Locked";
+        } else {
+            // Inactive State Safeguards (Toggle OFF)
+            headerStatusContainer.innerHTML = '<span class="paid-account-badge">● Paid (Inactive)</span>';
+            
+            dashHeartbeatStatusBadge.textContent = "PROTECTION INACTIVE";
+            dashHeartbeatStatusBadge.className = "toggle-label inactive";
+
+            dashCacheTempFill.style.width = "0%";
+            dashCacheTempFill.className = "progress-bar-fill bg-red-gradient";
+            dashCacheStatePill.className = "status-pill state-cold";
+            dashCacheStatePill.textContent = "INACTIVE";
+            dashCacheStateText.textContent = "AetherPing is disabled. Your prompt cache has cooled down, and you are paying standard prices.";
+            
+            if (dashTempPercentage) {
+                dashTempPercentage.textContent = "0%";
+                dashTempPercentage.style.color = "var(--color-red)";
+            }
+            if (dashStateDescription) {
+                dashStateDescription.textContent = "AetherPing is currently disabled. Caching safeguards are paused.";
+                dashStateDescription.style.color = "var(--text-secondary)";
+            }
+            if (dashActiveModelDisplay) {
+                dashActiveModelDisplay.classList.remove('text-emerald-glow');
+            }
+
+            // RE-ENABLE inputs when protection is turned OFF
+            dashModelSelector.disabled = false;
+            dashApiKeyInput.disabled = false;
+            dashGenerateBtn.disabled = false;
+            dashGenerateBtn.textContent = "Vault Settings & Sync Gateway";
+        }
+    }
+
+    // --- Landing Simulator Engine ---
     function updateSimulator() {
+        const loggedInUser = localStorage.getItem('aether_user');
+        const isPaid = localStorage.getItem('aether_paid') === 'true';
+
+        // Do not execute landing page simulator math if the client console is active
+        if (loggedInUser && isPaid) return;
+
         const modelKey = modelSelector.value;
         const model = MODELS[modelKey];
         const standardSpend = parseInt(sliderSpend.value, 10);
 
-        // Update spend text and instruction labels
+        // Update spend text and instructions labels
         txtSpend.textContent = `$${standardSpend.toLocaleString()}`;
 
         if (keyInstructionsTitle && keyInstructionsText) {
@@ -204,12 +334,8 @@ document.addEventListener('DOMContentLoaded', () => {
             keyInstructionsText.textContent = model.instructions.text;
         }
 
-        const loggedInUser = localStorage.getItem('aether_user');
-        const isPaid = localStorage.getItem('aether_paid') === 'true';
-
         let savingsRatio = 0;
 
-        // Customer Subscription Lifecycle Decision Tree
         if (!loggedInUser) {
             // State 1: LOGGED OUT Visitor
             headerStatusContainer.style.display = 'none';
@@ -229,7 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             savingsRatio = 0;
 
-        } else if (!isPaid) {
+        } else {
             // State 2: LOGGED IN Unpaid Account
             headerStatusContainer.style.display = 'block';
             headerStatusContainer.innerHTML = '<span class="unpaid-badge">● Unpaid Account</span>';
@@ -248,47 +374,6 @@ document.addEventListener('DOMContentLoaded', () => {
             cacheStateText.textContent = "Automated safeguards disabled. Select a premium plan below to unlock protection.";
 
             savingsRatio = 0;
-
-        } else {
-            // State 3 & 4: LOGGED IN Paid Account
-            headerStatusContainer.style.display = 'block';
-            
-            if (heartbeatToggle) {
-                heartbeatToggle.disabled = false;
-            }
-
-            if (heartbeatToggle && heartbeatToggle.checked) {
-                // State 4: Paid Account, Safeguards Active
-                headerStatusContainer.innerHTML = '<div class="active-badge-glowing"><span class="pulse-dot"></span><span>Secure Gateway Active</span></div>';
-                
-                heartbeatStatusBadge.textContent = "PROTECTION ACTIVE";
-                heartbeatStatusBadge.className = "toggle-label";
-
-                cacheTempFill.style.width = "100%";
-                cacheTempFill.className = "progress-bar-fill bg-emerald-gradient";
-                cacheStatePill.className = "status-pill state-warm";
-                cacheStatePill.textContent = "100% WARM & SECURED";
-                cacheStateText.textContent = `Active protection enabled. AetherPing automatically sends a warm-up heartbeat every ${model.bestPingMinutes} minutes based on ${model.name}'s specifications.`;
-
-                // Savings are fully unlocked
-                savingsRatio = model.savingsRatio;
-            } else {
-                // State 3: Paid Account, Safeguards Off
-                headerStatusContainer.innerHTML = '<span class="paid-account-badge">● Paid (Inactive)</span>';
-                
-                if (heartbeatStatusBadge) {
-                    heartbeatStatusBadge.textContent = "PROTECTION INACTIVE";
-                    heartbeatStatusBadge.className = "toggle-label inactive";
-                }
-
-                cacheTempFill.style.width = "0%";
-                cacheTempFill.className = "progress-bar-fill bg-red-gradient";
-                cacheStatePill.className = "status-pill state-cold";
-                cacheStatePill.textContent = "INACTIVE";
-                cacheStateText.textContent = "Protection unlocked! Toggle the switch above to start saving up to 90%.";
-
-                savingsRatio = 0;
-            }
         }
 
         // Financial calculations
@@ -309,7 +394,6 @@ document.addEventListener('DOMContentLoaded', () => {
     generateBtn.addEventListener('click', () => {
         const key = apiKeyInput.value.trim();
         const loggedInUser = localStorage.getItem('aether_user');
-        const isPaid = localStorage.getItem('aether_paid') === 'true';
 
         if (!loggedInUser) {
             alert('Please sign in to your dashboard account first to vault your API key.');
@@ -317,20 +401,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (!isPaid) {
-            alert('Please select and pay for one of the pricing plans below to unlock gateway endpoint creation.');
-            document.querySelector('.pricing-section').scrollIntoView({ behavior: 'smooth' });
-            return;
-        }
-
-        if (!key) {
-            alert('Please enter a secure API key first.');
-            return;
-        }
-
-        localStorage.setItem('aether_key_vaulted', key);
-        generateGatewayURL(key, loggedInUser);
-        outcomeBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        alert('Please select and pay for one of the pricing plans below to unlock gateway endpoint creation.');
+        document.querySelector('.pricing-section').scrollIntoView({ behavior: 'smooth' });
     });
 
     copyUrlBtn.addEventListener('click', () => {
@@ -342,6 +414,36 @@ document.addEventListener('DOMContentLoaded', () => {
             
             setTimeout(() => {
                 copyUrlBtn.classList.remove('copied');
+                btnSpan.textContent = 'Copy URL';
+            }, 2000);
+        }).catch(err => {
+            console.error('Clipboard copy failed: ', err);
+        });
+    });
+
+    // --- Dedicated Console Onboarding Event Handlers ---
+    dashGenerateBtn.addEventListener('click', () => {
+        const key = dashApiKeyInput.value.trim();
+        const loggedInUser = localStorage.getItem('aether_user');
+
+        if (!key) {
+            alert('Please enter a secure API key first.');
+            return;
+        }
+
+        localStorage.setItem('aether_key_vaulted', key);
+        generateGatewayURL(key, loggedInUser, true);
+    });
+
+    dashCopyUrlBtn.addEventListener('click', () => {
+        const urlText = dashGatewayUrlEl.textContent;
+        navigator.clipboard.writeText(urlText).then(() => {
+            dashCopyUrlBtn.classList.add('copied');
+            const btnSpan = dashCopyUrlBtn.querySelector('span');
+            btnSpan.textContent = 'Copied!';
+            
+            setTimeout(() => {
+                dashCopyUrlBtn.classList.remove('copied');
                 btnSpan.textContent = 'Copy URL';
             }, 2000);
         }).catch(err => {
@@ -413,15 +515,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Simulate B2B checkout payment success
             localStorage.setItem('aether_paid', 'true');
-            alert('🎉 Subscription payment successful! Your AetherPing Caching Safeguards have been unlocked. Go ahead and toggle Card 2’s switch ON to start caching and secure your AI cost savings!');
+            alert('🎉 Subscription payment successful! Swapping view to your dedicated standalone gateway dashboard.');
             
             checkLoginState();
-            updateSimulator();
-            
-            // Scroll back to main dashboard smoothly
-            document.querySelector('.dashboard-grid').scrollIntoView({ behavior: 'smooth' });
         });
     });
 
@@ -432,6 +529,14 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (heartbeatToggle) {
         heartbeatToggle.addEventListener('change', updateSimulator);
+    }
+
+    // Dedicated Console Event Listeners
+    dashModelSelector.addEventListener('change', syncClientDashboard);
+    dashModelSelector.addEventListener('input', syncClientDashboard);
+    
+    if (dashHeartbeatToggle) {
+        dashHeartbeatToggle.addEventListener('change', syncClientDashboard);
     }
 
     // --- Initial Onboarding State ---
