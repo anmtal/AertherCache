@@ -9,9 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'claude-sonnet': {
             name: 'Claude 3.5 Sonnet',
             savingsRatio: 0.75, // Save 75% on average with optimized cache
-            evictionMinutes: 5,
             bestPingMinutes: 4.5,
-            tip: 'Anthropic caches expire completely after 5 minutes of idle silence.',
             instructions: {
                 title: 'HOW TO FIND YOUR ANTHROPIC KEY:',
                 text: "Sign in to your Anthropic Console -> navigate to 'API Keys' in the sidebar -> click 'Create Key'. Copy your key immediately (it starts with 'sk-ant-')."
@@ -20,9 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'claude-haiku': {
             name: 'Claude 3.5 Haiku',
             savingsRatio: 0.70,
-            evictionMinutes: 5,
             bestPingMinutes: 4.5,
-            tip: 'Haiku’s cheap prompt cache evicts after 5 minutes of inactivity.',
             instructions: {
                 title: 'HOW TO FIND YOUR ANTHROPIC KEY:',
                 text: "Sign in to your Anthropic Console -> navigate to 'API Keys' in the sidebar -> click 'Create Key'. Copy your key immediately (it starts with 'sk-ant-')."
@@ -31,9 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'claude-opus': {
             name: 'Claude 3.0 Opus',
             savingsRatio: 0.78,
-            evictionMinutes: 5,
             bestPingMinutes: 4.5,
-            tip: 'Opus caches expire after 5 minutes. Letting them evict is highly penalizing.',
             instructions: {
                 title: 'HOW TO FIND YOUR ANTHROPIC KEY:',
                 text: "Sign in to your Anthropic Console -> navigate to 'API Keys' in the sidebar -> click 'Create Key'. Copy your key immediately (it starts with 'sk-ant-')."
@@ -42,9 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'gpt-4o': {
             name: 'GPT-4o',
             savingsRatio: 0.40, // Save 40% on average
-            evictionMinutes: 10,
             bestPingMinutes: 9.0,
-            tip: 'OpenAI automatically caches in blocks, but evicts caches after ~10 minutes.',
             instructions: {
                 title: 'HOW TO FIND YOUR OPENAI KEY:',
                 text: "Go to your OpenAI Platform Dashboard -> select the 'API Keys' tab -> click 'Create secret key'. Note your key securely (it starts with 'sk-proj-')."
@@ -53,9 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'gpt-4o-mini': {
             name: 'GPT-4o-mini',
             savingsRatio: 0.38,
-            evictionMinutes: 10,
             bestPingMinutes: 9.0,
-            tip: 'GPT-4o-mini evicts inactive caches quickly.',
             instructions: {
                 title: 'HOW TO FIND YOUR OPENAI KEY:',
                 text: "Go to your OpenAI Platform Dashboard -> select the 'API Keys' tab -> click 'Create secret key'. Note your key securely (it starts with 'sk-proj-')."
@@ -64,9 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'gemini-pro': {
             name: 'Gemini 1.5 Pro',
             savingsRatio: 0.45,
-            evictionMinutes: 5,
             bestPingMinutes: 4.5,
-            tip: 'Google Gemini prompt caching evicts after 5 minutes of inactivity.',
             instructions: {
                 title: 'HOW TO FIND YOUR GOOGLE GEMINI KEY:',
                 text: "Sign in to Google AI Studio -> click the prominent 'Get API key' button in the top left menu -> copy your secure key string (starts with 'AIzaSy')."
@@ -75,9 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'gemini-flash': {
             name: 'Gemini 1.5 Flash',
             savingsRatio: 0.42,
-            evictionMinutes: 5,
             bestPingMinutes: 4.5,
-            tip: 'Gemini Flash cache expires after 5 minutes of inactivity.',
             instructions: {
                 title: 'HOW TO FIND YOUR GOOGLE GEMINI KEY:',
                 text: "Sign in to Google AI Studio -> click the prominent 'Get API key' button in the top left menu -> copy your secure key string (starts with 'AIzaSy')."
@@ -86,9 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'deepseek-v3': {
             name: 'DeepSeek-V3',
             savingsRatio: 0.45,
-            evictionMinutes: 10,
             bestPingMinutes: 9.0,
-            tip: 'DeepSeek-V3 caches evict during idle periods (approx 10 minutes).',
             instructions: {
                 title: 'HOW TO FIND YOUR DEEPSEEK KEY:',
                 text: "Access your DeepSeek Developer Platform Console -> click on the 'API Keys' tab -> click 'Create API Key'. Copy it safely (starts with 'sk-')."
@@ -99,12 +83,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- DOM Selectors ---
     const modelSelector = document.getElementById('model-selector');
     const sliderSpend = document.getElementById('slider-spend');
-    const sliderTime = document.getElementById('slider-time');
-    const heartbeatToggle = document.getElementById('heartbeat-toggle');
 
     const txtSpend = document.getElementById('val-spend-txt');
-    const txtTime = document.getElementById('val-time-txt');
-    const evictionTip = document.getElementById('eviction-tip');
 
     const costStandardEl = document.getElementById('cost-standard');
     const costOptimizedEl = document.getElementById('cost-optimized');
@@ -115,8 +95,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const cacheTempFill = document.getElementById('cache-temp-fill');
     const cacheStatePill = document.getElementById('cache-state-pill');
     const cacheStateText = document.getElementById('cache-state-text');
-    const leakageWarning = document.getElementById('leakage-warning');
-    const heartbeatStatusBadge = document.getElementById('heartbeat-status-badge');
 
     const apiKeyInput = document.getElementById('api-key-input');
     const generateBtn = document.getElementById('generate-btn');
@@ -209,11 +187,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const model = MODELS[modelKey];
 
         const standardSpend = parseInt(sliderSpend.value, 10);
-        const elapsedMinutes = parseInt(sliderTime.value, 10);
 
-        // Update spend text and model tips
+        // Update spend text
         txtSpend.textContent = `$${standardSpend.toLocaleString()}`;
-        evictionTip.textContent = model.tip;
 
         // Dynamic API Key instructions based on the selected LLM Model
         if (keyInstructionsTitle && keyInstructionsText) {
@@ -221,65 +197,17 @@ document.addEventListener('DOMContentLoaded', () => {
             keyInstructionsText.textContent = model.instructions.text;
         }
 
-        // Base Savings Ratio
-        let savingsRatio = model.savingsRatio;
-        let cacheIntegrity = 100;
-
-        // Protection check (Automated heartbeats scheduled by our proxy system)
-        if (heartbeatToggle.checked) {
-            // Lock simulator visually because active protection ensures continuous 100% warm cache
-            sliderTime.value = 0;
-            txtTime.textContent = "0 mins (Warm)";
-            heartbeatStatusBadge.textContent = "PROTECTION ACTIVE";
-            heartbeatStatusBadge.className = "toggle-label";
-
-            cacheTempFill.style.width = "100%";
-            cacheTempFill.className = "progress-bar-fill bg-emerald-gradient";
-            cacheStatePill.className = "status-pill state-warm";
-            cacheStatePill.textContent = "100% WARM & SECURED";
-            
-            // Dynamic message displaying the System's auto-scheduled ping interval
-            cacheStateText.textContent = `Active protection enabled. AetherPing automatically sends a warm-up heartbeat every ${model.bestPingMinutes} minutes based on ${model.name}'s specifications.`;
-            leakageWarning.style.display = "none";
-        } else {
-            // Heartbeat disabled, cache cooling down based on manual slider
-            heartbeatStatusBadge.textContent = "PROTECTION DISABLED";
-            heartbeatStatusBadge.className = "toggle-label inactive";
-            txtTime.textContent = `${elapsedMinutes} mins`;
-
-            const evictionLimit = model.evictionMinutes;
-
-            if (elapsedMinutes < evictionLimit) {
-                // Cooling state
-                cacheIntegrity = Math.max(0, 100 - (elapsedMinutes * (100 / evictionLimit)));
-                cacheTempFill.style.width = `${cacheIntegrity}%`;
-                cacheTempFill.className = "progress-bar-fill bg-emerald-gradient";
-                cacheStatePill.className = "status-pill state-warm";
-                cacheStatePill.textContent = `${Math.round(cacheIntegrity)}% WARM (Cooling)`;
-                cacheStateText.textContent = `Your cache is cooling down. It will evict completely in ${evictionLimit - elapsedMinutes} minute(s) of idle silence.`;
-                leakageWarning.style.display = "none";
-
-                // Savings ratio decays with temperature
-                savingsRatio = savingsRatio * (cacheIntegrity / 100);
-            } else {
-                // Expired cold state
-                cacheIntegrity = 0;
-                cacheTempFill.style.width = "0%";
-                cacheTempFill.className = "progress-bar-fill bg-red-gradient";
-                cacheStatePill.className = "status-pill state-cold";
-                cacheStatePill.textContent = "EXPIRED (Evicted)";
-                cacheStateText.textContent = "Your prompt cache expired. Caching discounts have been lost.";
-                
-                // Alert banner
-                leakageWarning.style.display = "flex";
-                document.getElementById('leakage-desc-text').textContent = `Your cache expired after ${elapsedMinutes} minutes of idle silence. Caching discounts are lost. Turn on protection to automatically trigger ${model.bestPingMinutes}-min heartbeats.`;
-
-                // 0 savings realized
-                savingsRatio = 0;
-            }
-        }
+        // Cache remains 100% warm permanently since heartbeats are automated by our servers
+        cacheTempFill.style.width = "100%";
+        cacheTempFill.className = "progress-bar-fill bg-emerald-gradient";
+        cacheStatePill.className = "status-pill state-warm";
+        cacheStatePill.textContent = "100% WARM & SECURED";
+        
+        // Dynamic message displaying the System's auto-scheduled ping interval
+        cacheStateText.textContent = `Active protection enabled. AetherPing automatically sends a warm-up heartbeat every ${model.bestPingMinutes} minutes based on ${model.name}'s specifications.`;
 
         // Financial calculations
+        const savingsRatio = model.savingsRatio;
         const savingsValue = standardSpend * savingsRatio;
         const optimizedCost = standardSpend - savingsValue;
         const annualSavings = savingsValue * 12;
@@ -392,14 +320,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Inputs Event Listeners ---
-    const inputs = [modelSelector, sliderSpend, sliderTime];
+    const inputs = [modelSelector, sliderSpend];
     inputs.forEach(input => {
         input.addEventListener('input', updateSimulator);
     });
 
-    heartbeatToggle.addEventListener('change', updateSimulator);
-
-    // --- Initial Startup Check ---
-    checkLoginState();
+    // Run Initial Simulation calculations
     updateSimulator();
 });

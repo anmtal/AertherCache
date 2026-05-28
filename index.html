@@ -99,16 +99,6 @@
                             </div>
                             <input type="range" id="slider-spend" min="500" max="50000" step="500" value="5000" class="custom-slider">
                         </div>
-
-                        <!-- AI Inactivity Slider -->
-                        <div class="slider-group">
-                            <div class="slider-info">
-                                <span class="slider-label">Average Time Between Queries (Minutes)</span>
-                                <span class="slider-value" id="val-time-txt">0 mins</span>
-                            </div>
-                            <input type="range" id="slider-time" min="0" max="15" step="1" value="0" class="custom-slider purple-track">
-                            <span class="slider-tip" id="eviction-tip">Anthropic caches expire completely after 5 minutes of idle silence.</span>
-                        </div>
                     </div>
                 </div>
 
@@ -120,14 +110,8 @@
                                 <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
                             </svg>
                         </div>
-                        <h3>2. Cache Caching Safeguards</h3>
-                        <div class="toggle-switch-wrapper">
-                            <span class="toggle-label" id="heartbeat-status-badge">PROTECTION ACTIVE</span>
-                            <label class="switch">
-                                <input type="checkbox" id="heartbeat-toggle" checked>
-                                <span class="slider-toggle round"></span>
-                            </label>
-                        </div>
+                        <h3>2. Active Cache Safeguards</h3>
+                        <span class="outcome-success-badge" style="margin-left: auto;">● ACTIVE</span>
                     </div>
                     <div class="card-body">
                         <!-- Cache State Dial -->
@@ -149,22 +133,7 @@
                         <!-- Safeguard Active Alert note -->
                         <div class="safeguard-warning-pill">
                             <span>⚠️ note:</span>
-                            <p>Keep this protection active to sustain your caching discounts. Disabling this will cause your caches to expire, leaking up to 90% of your AI budget.</p>
-                        </div>
-
-                        <!-- Caching Cost Leakage Warning -->
-                        <div class="cost-leakage-warning" id="leakage-warning" style="display: none;">
-                            <div class="leakage-icon">
-                                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2.5" fill="none">
-                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-                                    <line x1="12" y1="9" x2="12" y2="13"></line>
-                                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                                </svg>
-                            </div>
-                            <div class="leakage-content">
-                                <span class="leakage-title">WARNING: Cache Eviction & Budget Leakage!</span>
-                                <p class="leakage-desc" id="leakage-desc-text">Caches have cooled down. Next user will pay standard full price and wait for standard start-up delays.</p>
-                            </div>
+                            <p>AetherPing is actively running in the background on our servers to sustain your caching discounts. No manual configuration is required.</p>
                         </div>
                     </div>
                 </div>
