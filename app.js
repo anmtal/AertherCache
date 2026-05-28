@@ -141,6 +141,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const authSubmitBtn = document.getElementById('auth-submit-btn');
     const authToggleType = document.getElementById('auth-toggle-type');
 
+    const aboutUsTrigger = document.getElementById('about-us-trigger');
+    const aboutModal = document.getElementById('about-modal');
+    const aboutModalCloseBtn = document.getElementById('about-modal-close-btn');
+
     const liveTelemetryBadge = document.querySelector('.live-telemetry-badge');
 
     // --- Authentication & Workspace state swapping ---
@@ -458,6 +462,24 @@ document.addEventListener('DOMContentLoaded', () => {
     authModal.addEventListener('click', (e) => {
         if (e.target === authModal) closeAuthModal();
     });
+
+    // --- About Us Modal Event Handlers ---
+    if (aboutUsTrigger && aboutModal) {
+        aboutUsTrigger.addEventListener('click', (e) => {
+            e.preventDefault();
+            aboutModal.classList.add('active');
+        });
+    }
+
+    if (aboutModalCloseBtn && aboutModal) {
+        aboutModalCloseBtn.addEventListener('click', () => {
+            aboutModal.classList.remove('active');
+        });
+        
+        aboutModal.addEventListener('click', (e) => {
+            if (e.target === aboutModal) aboutModal.classList.remove('active');
+        });
+    }
 
     googleLoginBtn.addEventListener('click', () => {
         doMockLogin('google.partner@company.com');

@@ -35,6 +35,7 @@
             </div>
             
             <div class="header-actions">
+                <a href="#" class="about-nav-link" id="about-us-trigger">About Us</a>
                 <button class="login-btn" id="login-btn">Client Login</button>
                 <div class="user-profile" id="user-profile" style="display: none;">
                     <span class="user-avatar">U</span>
@@ -51,6 +52,10 @@
         <div id="landing-page-container">
         <!-- Hero Pitch Section -->
         <section class="hero-section">
+            <div class="hero-badge" id="about-banner-badge">
+                <span class="badge-dot"></span>
+                <span>About Us: The world's first plug-and-play cost-optimization proxy for AI models.</span>
+            </div>
             <h2 class="hero-title">Cut Your AI API Bills By <span class="text-purple-glow">50% to 90%</span> Instantly</h2>
             <p class="hero-subtitle">
                 No complex prompt engineering. No code changes. Just paste your secure API key, turn on automatic caching protection, and watch your monthly spend drop.
@@ -513,6 +518,50 @@
             </form>
 
             <span class="auth-toggle-link" id="auth-toggle-type">Don't have an enterprise account? Create one</span>
+        </div>
+    </div>
+
+    <!-- Beautiful Glassmorphic About Us Overlay -->
+    <div class="modal-overlay" id="about-modal">
+        <div class="modal-card about-modal-card">
+            <button class="modal-close-btn" id="about-modal-close-btn">&times;</button>
+            <div class="modal-title-wrapper">
+                <span class="console-badge">OUR MISSION</span>
+                <h3>About AetherCache</h3>
+                <p>We are engineering the future of cost-efficient, lightning-fast AI infrastructure.</p>
+            </div>
+            
+            <div class="about-modal-content">
+                <div class="about-section">
+                    <h4>The Problem</h4>
+                    <p>Large Language Models (LLMs) charge premium rates for processing context inputs. As conversations grow, system instructions and documents are reprocessed continuously, leading to massive, unsustainable API bills.</p>
+                </div>
+                
+                <div class="about-section">
+                    <h4>The AetherCache Solution</h4>
+                    <p>We act as an intelligent edge-caching proxy. By refactoring prompts in-memory and dispatching automated keep-warm heartbeats (AetherPing), we keep model caches alive 24/7. Startups save 50% to 90% on LLM queries with zero code changes.</p>
+                </div>
+
+                <div class="about-grid">
+                    <div class="about-stat-box">
+                        <span class="stat-num text-purple-glow">90%</span>
+                        <span class="stat-label">Max Cost Savings</span>
+                    </div>
+                    <div class="about-stat-box">
+                        <span class="stat-num text-cyan-glow">4.5x</span>
+                        <span class="stat-label">Latency Speedup</span>
+                    </div>
+                    <div class="about-stat-box">
+                        <span class="stat-num text-emerald-glow">100%</span>
+                        <span class="stat-label">Zero-Code Setup</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="about-modal-footer">
+                <span>📍 San Francisco, CA</span>
+                <span>🔒 AES-256 BYOK Architecture</span>
+            </div>
         </div>
     </div>
 
