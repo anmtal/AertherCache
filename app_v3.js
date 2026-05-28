@@ -33,16 +33,16 @@ document.addEventListener('DOMContentLoaded', () => {
             rateCacheRead: 0.30,  // per million (90% discount)
             rateCacheWrite: 3.75, // per million (25% penalty)
             rateOutput: 15.00,    // per million
-            tip: 'Anthropic caches expire after 5 minutes of idle silence. Point your SDK to the AetherCache Gateway; we automatically inject cache headers and trigger background keep-warm heartbeats 24/7.'
+            tip: 'To integrate: Replace your standard Anthropic API key with your AetherCache Key, and set base_url to our gateway URL in your Anthropic client constructor.'
         },
         'claude-haiku': {
-            name: 'Claude 3.5 Haiku',
+            name: 'Claude-3.5-Haiku',
             provider: 'Anthropic',
             rateInput: 0.80,
             rateCacheRead: 0.08,  // per million (90% discount)
             rateCacheWrite: 1.00, // per million (25% penalty)
             rateOutput: 4.00,
-            tip: 'Haiku’s cheap cache evicts after 5 minutes of inactivity. Route your calls through the AetherCache Gateway to automatically sustain your $0.08/M cache read rate.'
+            tip: 'To integrate: Replace your standard Anthropic API key with your AetherCache Key, and set base_url to our gateway URL in your Anthropic client constructor.'
         },
         'claude-opus': {
             name: 'Claude 3.0 Opus',
@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rateCacheRead: 1.50,  // per million (90% discount)
             rateCacheWrite: 18.75, // per million (25% penalty)
             rateOutput: 75.00,
-            tip: 'Opus caches expire after 5 minutes. Because Opus inputs are extremely expensive ($15.00/M), letting them evict is highly penalizing. Our gateway transparently keeps your reasoning context warm 24/7.'
+            tip: 'To integrate: Replace your standard Anthropic API key with your AetherCache Key, and set base_url to our gateway URL in your Anthropic client constructor.'
         },
         'gpt-4o': {
             name: 'GPT-4o',
@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rateCacheRead: 2.50,  // per million (50% discount)
             rateCacheWrite: 5.00, // per million (no penalty)
             rateOutput: 15.00,
-            tip: 'OpenAI automatically caches in 1024-token blocks, but evicts inactive caches after ~10 minutes. AetherCache’s proxy aligns your blocks and maintains low-frequency background heartbeats.'
+            tip: 'To integrate: Replace your standard OpenAI API key with your AetherCache Key, and set base_url to our gateway URL in your OpenAI client constructor.'
         },
         'gpt-4o-mini': {
             name: 'GPT-4o-mini',
@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rateCacheRead: 0.075, // per million (50% discount)
             rateCacheWrite: 0.15, // per million (no penalty)
             rateOutput: 0.60,
-            tip: 'OpenAI’s mini model evicts inactive caches quickly. The AetherCache Gateway runs low-overhead background pings to guarantee your sub-millisecond cached completion speeds.'
+            tip: 'To integrate: Replace your standard OpenAI API key with your AetherCache Key, and set base_url to our gateway URL in your OpenAI client constructor.'
         },
         'gemini-pro': {
             name: 'Gemini 1.5 Pro',
@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rateCacheRead: 0.625, // per million (50% discount)
             rateCacheWrite: 1.25, // per million (no penalty)
             rateOutput: 5.00,
-            tip: 'Google Gemini prompt caching is highly cost-effective for large contexts, but evicts after 5 minutes of inactivity (TTL: 300s). Our proxy automatically keeps large contexts warm 24/7.'
+            tip: 'To integrate: Replace your standard Google API key with your AetherCache Key, and set base_url to our gateway URL in your GoogleGenAI client constructor.'
         },
         'gemini-flash': {
             name: 'Gemini 1.5 Flash',
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rateCacheRead: 0.0375, // per million (50% discount)
             rateCacheWrite: 0.075, // per million (no penalty)
             rateOutput: 0.30,
-            tip: 'Gemini Flash cache expires after 5 minutes. Sustain your 50% prompt caching discount automatically by routing queries through our secure, zero-code AI Gateway.'
+            tip: 'To integrate: Replace your standard Google API key with your AetherCache Key, and set base_url to our gateway URL in your GoogleGenAI client constructor.'
         },
         'deepseek-v3': {
             name: 'DeepSeek-V3',
@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rateCacheRead: 0.07,  // per million (50% discount)
             rateCacheWrite: 0.14, // per million (no penalty)
             rateOutput: 0.28,
-            tip: 'DeepSeek-V3 caches evict during idle periods (approx 10 minutes). Route your calls through our API base URL to maintain active cache prefix alignment and lock in the $0.07/M rate.'
+            tip: 'To integrate: Replace your standard DeepSeek API key with your AetherCache Key, and set base_url to our gateway URL in your OpenAI client constructor.'
         }
     };
 
@@ -490,19 +490,16 @@ Query: "Explain prompt caching rules"</pre>
             pyCode = `
 import anthropic
 
-# ⚡ Zero-Code Prompt Caching Integration
-# Just point your standard Anthropic client to our AetherCache Base URL.
-# The gateway automatically refactors prompt order and pings to keep it warm!
-
+# Configure your Anthropic client to route requests through AetherCache:
 client = anthropic.Anthropic(
-    api_key="ae_live_8f9c2d7b...",            # Your secure AetherCache Key
-    base_url="http://localhost:3000/api/v1"    # Your personalized gateway URL
+    api_key="ae_live_8f9c2d7b...",            # Replace with your secure AetherCache Key
+    base_url="http://localhost:3000/api/v1"    # Replace with your personalized gateway URL
 )
 
 response = client.messages.create(
     model="${modelId}",
     max_tokens=1000,
-    system="System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]", # Auto-cached on our servers!
+    system="System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]",
     messages=[
         {
             "role": "user",
@@ -516,20 +513,17 @@ print(response.content[0].text)
             nodeCode = `
 import Anthropic from '@anthropic-ai/sdk';
 
-// ⚡ Zero-Code Prompt Caching Integration
-// Swap the baseURL and apiKey in your environment config.
-// Our proxy gateway handles prefix caching & background heartbeats automatically.
-
+// Configure your Anthropic client to route requests through AetherCache:
 const anthropic = new Anthropic({
-  apiKey: 'ae_live_8f9c2d7b...',            // Your secure AetherCache Key
-  baseURL: 'http://localhost:3000/api/v1'    // Your personalized gateway URL
+  apiKey: 'ae_live_8f9c2d7b...',            // Replace with your secure AetherCache Key
+  baseURL: 'http://localhost:3000/api/v1'    // Replace with your personalized gateway URL
 });
 
 async function main() {
   const response = await anthropic.messages.create({
     model: '${modelId}',
     max_tokens: 1000,
-    system: 'System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]', // Auto-cached on our servers!
+    system: 'System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]',
     messages: [
       {
         role: 'user',
@@ -548,13 +542,10 @@ main();
             pyCode = `
 import openai
 
-# ⚡ Zero-Code Prompt Caching Integration
-# Just point your standard OpenAI SDK to our AetherCache Base URL.
-# The gateway automatically aligns 1024-token cache blocks and runs heartbeats.
-
+# Configure your OpenAI client to route requests through AetherCache:
 client = openai.OpenAI(
-    api_key="ae_live_8f9c2d7b...",            # Your secure AetherCache Key
-    base_url="http://localhost:3000/api/v1"    # Your personalized gateway URL
+    api_key="ae_live_8f9c2d7b...",            # Replace with your secure AetherCache Key
+    base_url="http://localhost:3000/api/v1"    # Replace with your personalized gateway URL
 )
 
 response = client.chat.completions.create(
@@ -562,7 +553,7 @@ response = client.chat.completions.create(
     messages=[
         {
             "role": "system",
-            "content": "System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]" # Aligned & Cached
+            "content": "System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]"
         },
         {
             "role": "user",
@@ -576,13 +567,10 @@ print(response.choices[0].message.content)
             nodeCode = `
 import OpenAI from 'openai';
 
-// ⚡ Zero-Code Prompt Caching Integration
-// Point your standard OpenAI client to the AetherCache Gateway.
-// We manage in-memory caching and keep-warm scheduler completely on our backend.
-
+// Configure your OpenAI client to route requests through AetherCache:
 const openai = new OpenAI({
-  apiKey: 'ae_live_8f9c2d7b...',            // Your secure AetherCache Key
-  baseURL: 'http://localhost:3000/api/v1'    // Your personalized gateway URL
+  apiKey: 'ae_live_8f9c2d7b...',            // Replace with your secure AetherCache Key
+  baseURL: 'http://localhost:3000/api/v1'    // Replace with your personalized gateway URL
 });
 
 async function main() {
@@ -591,7 +579,7 @@ async function main() {
     messages: [
       {
         role: 'system',
-        content: 'System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]' // Aligned & Cached
+        content: 'System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]'
       },
       {
         role: 'user',
@@ -610,19 +598,16 @@ main();
             pyCode = `
 from google import genai
 
-# ⚡ Zero-Code Prompt Caching Integration
-# Point standard Google GenAI SDK to the AetherCache base URL.
-# Gateway manages cache creation, TTL overrides, and keep-warm execution.
-
+# Configure your Google GenAI client to route requests through AetherCache:
 client = genai.Client(
-    api_key="ae_live_8f9c2d7b...", # Your secure AetherCache Key
-    http_options={'api_version': 'v1', 'base_url': 'http://localhost:3000/api/v1'} # Gateway URL
+    api_key="ae_live_8f9c2d7b...", # Replace with your secure AetherCache Key
+    http_options={'api_version': 'v1', 'base_url': 'http://localhost:3000/api/v1'} # Replace with your personalized gateway URL
 )
 
 response = client.models.generate_content(
     model="${modelId}",
     contents="User Question: Explain prompt caching rules",
-    config={'system_instruction': "System Rules... [Static Context: ${staticTokens.toLocaleString()} tokens]"} # Auto-cached!
+    config={'system_instruction': "System Rules... [Static Context: ${staticTokens.toLocaleString()} tokens]"}
 )
 print(response.text)
             `.trim();
@@ -630,13 +615,10 @@ print(response.text)
             nodeCode = `
 import { GoogleGenAI } from '@google/genai';
 
-// ⚡ Zero-Code Prompt Caching Integration
-// Pre-creating caches and TTL logic is fully managed behind the scenes on our gateway.
-// Just use standard generateContent with our baseURL.
-
+// Configure your GoogleGenAI client to route requests through AetherCache:
 const ai = new GoogleGenAI({
-  apiKey: 'ae_live_8f9c2d7b...',            // Your secure AetherCache Key
-  baseURL: 'http://localhost:3000/api/v1'    // Your personalized gateway URL
+  apiKey: 'ae_live_8f9c2d7b...',            // Replace with your secure AetherCache Key
+  baseURL: 'http://localhost:3000/api/v1'    // Replace with your personalized gateway URL
 });
 
 async function main() {
@@ -644,7 +626,7 @@ async function main() {
     model: '${modelId}',
     contents: 'User Question: Explain prompt caching rules',
     config: {
-      systemInstruction: 'System Rules... [Static Context: ${staticTokens.toLocaleString()} tokens]' // Auto-cached!
+      systemInstruction: 'System Rules... [Static Context: ${staticTokens.toLocaleString()} tokens]'
     }
   });
   console.log(response.text);
@@ -655,13 +637,10 @@ main();
             pyCode = `
 import openai
 
-# ⚡ Zero-Code Prompt Caching Integration
-# DeepSeek API connects to DeepSeek endpoints via AetherCache Gateway.
-# The gateway automatically manages prefix alignment and runs keep-warm heartbeats.
-
+# Configure your OpenAI client (for DeepSeek) to route requests through AetherCache:
 client = openai.OpenAI(
-    api_key="ae_live_8f9c2d7b...",            # Your secure AetherCache Key
-    base_url="http://localhost:3000/api/v1"    # Your personalized gateway URL
+    api_key="ae_live_8f9c2d7b...",            # Replace with your secure AetherCache Key
+    base_url="http://localhost:3000/api/v1"    # Replace with your personalized gateway URL
 )
 
 response = client.chat.completions.create(
@@ -669,7 +648,7 @@ response = client.chat.completions.create(
     messages=[
         {
             "role": "system",
-            "content": "System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]" # Aligned & Cached
+            "content": "System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]"
         },
         {
             "role": "user",
@@ -683,12 +662,10 @@ print(response.choices[0].message.content)
             nodeCode = `
 import OpenAI from 'openai';
 
-// ⚡ Zero-Code Prompt Caching Integration
-// Swapping the baseURL is all it takes to enable DeepSeek-V3 caching + heartbeats.
-
+// Configure your OpenAI client (for DeepSeek) to route requests through AetherCache:
 const openai = new OpenAI({
-  apiKey: 'ae_live_8f9c2d7b...',            // Your secure AetherCache Key
-  baseURL: 'http://localhost:3000/api/v1'    // Your personalized gateway URL
+  apiKey: 'ae_live_8f9c2d7b...',            // Replace with your secure AetherCache Key
+  baseURL: 'http://localhost:3000/api/v1'    // Replace with your personalized gateway URL
 });
 
 async function main() {
@@ -697,7 +674,7 @@ async function main() {
     messages: [
       {
         role: 'system',
-        content: 'System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]' // Aligned & Cached
+        content: 'System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]'
       },
       {
         role: 'user',

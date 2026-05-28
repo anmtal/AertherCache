@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles_v3.css">
 </head>
 <body>
     <!-- Glow Effects in Background -->
@@ -438,10 +438,7 @@
                             <pre><code class="code-output language-py" id="code-snippet">
                             </code></pre>
                         </div>
-                        <div class="sdk-note">
-                            <span class="note-pill heartbeat-pill">⚡ ZERO-CODE OPTIMIZATION</span>
-                            <span class="note-text" id="sdk-tip-text">Just point your standard SDK to the AetherCache Proxy Base URL and your dashboard key. Caching and heartbeats are fully managed on our backend.</span>
-                        </div>
+                        <p class="sdk-instruction-text" id="sdk-tip-text">To integrate: Replace your standard Anthropic API key with your AetherCache Key, and set base_url to our gateway URL in your Anthropic client constructor.</p>
                     </div>
                 </div>
 
@@ -461,6 +458,6 @@
     </div>
 
     <!-- App Script logic -->
-    <script src="app.js"></script>
+    <script src="app_v3.js"></script>
 </body>
 </html>
