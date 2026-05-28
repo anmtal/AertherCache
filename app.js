@@ -368,37 +368,41 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Dirty HTML
         editorDirty.innerHTML = `
-<span class="hl-header"># ❌ DYNAMIC METADATA BREAKS PREFIX</span>
-<span class="hl-danger">{{user_name = "Alex_Dev_99"}}</span>
-<span class="hl-danger">{{timestamp = "${new Date().toISOString()}"}}</span>
+<div class="visual-block block-red">
+    <div class="block-label">⚠️ DYNAMIC VARIABLES (Breaks Cache Prefix Match)</div>
+    <div class="block-info">Placing changing items here causes the cache prefix check to fail immediately for all text below.</div>
+    <pre class="block-code">{{user_name = "Alex_Dev_99"}}
+{{timestamp = "${new Date().toISOString()}"}}</pre>
+</div>
 
-<span class="hl-static"># --- MASSIVE STATIC REFERENCE DOCUMENTATION ---
-# Size: ${staticTokens.toLocaleString()} tokens (${kbSizeStr} of raw data)
+<div class="visual-block block-gray">
+    <div class="block-label">🔒 STATIC RULES & CONTEXT (Charged at 100% Full Price)</div>
+    <div class="block-info">Because the dynamic variables above are constantly changing, this block cannot match the cache prefix.</div>
+    <pre class="block-code"># Size: ${staticTokens.toLocaleString()} tokens (${kbSizeStr})
 You are an advanced AI engineering partner. Your role is
 to strictly analyze code using the following developer rules...
-[Hundreds of lines of static coding specifications here]
-...
-# -----------------------------------------------</span>
-
-<span class="hl-success"># User's immediate query</span>
-<span class="hl-success">Query: "Explain prompt caching rules"</span>
+[Hundreds of lines of static coding specifications here]</pre>
+</div>
         `.trim();
 
         // Clean HTML
         editorClean.innerHTML = `
-<span class="hl-header">#  STATIC CONTEXT AT TOP (CACHED PREFIX)</span>
-<span class="hl-static"># --- MASSIVE STATIC REFERENCE DOCUMENTATION ---
-# Size: ${staticTokens.toLocaleString()} tokens (${kbSizeStr} of raw data)
+<div class="visual-block block-green">
+    <div class="block-label">✅ SECURED CACHED PREFIX (Processed at 90% DISCOUNT)</div>
+    <div class="block-info">This static block stays 100% identical. Billed at just $0.30/M tokens!</div>
+    <pre class="block-code"># Size: ${staticTokens.toLocaleString()} tokens (${kbSizeStr})
 You are an advanced AI engineering partner. Your role is
 to strictly analyze code using the following developer rules...
-[Hundreds of lines of static coding specifications here]
-...
-# -----------------------------------------------</span>
+[Hundreds of lines of static coding specifications here]</pre>
+</div>
 
-<span class="hl-header">#  DYNAMIC VARIABLES INSERTED AT END</span>
-<span class="hl-success">{{user_name = "Alex_Dev_99"}}</span>
-<span class="hl-success">{{timestamp = "${new Date().toISOString()}"}}</span>
-<span class="hl-success">Query: "Explain prompt caching rules"</span>
+<div class="visual-block block-blue">
+    <div class="block-label">⚡ DYNAMIC PAYLOAD (Appended at the end)</div>
+    <div class="block-info">Dynamic variables are placed here so they do not disturb the cached prefix above.</div>
+    <pre class="block-code">{{user_name = "Alex_Dev_99"}}
+{{timestamp = "${new Date().toISOString()}"}}
+Query: "Explain prompt caching rules"</pre>
+</div>
         `.trim();
     }
 
