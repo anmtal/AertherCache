@@ -15,6 +15,24 @@ document.addEventListener('DOMContentLoaded', () => {
             rateOutput: 15.00,    // per million
             tip: 'Anthropic prompt caching is extremely powerful. Static system prompts and context files at the beginning of your prompt are read at a 90% discount after the first query.'
         },
+        'claude-haiku': {
+            name: 'Claude 3.5 Haiku',
+            provider: 'Anthropic',
+            rateInput: 0.80,
+            rateCacheRead: 0.08,  // per million (90% discount)
+            rateCacheWrite: 1.00, // per million (25% penalty)
+            rateOutput: 4.00,
+            tip: 'Anthropic’s fastest model offers ultra-cheap caching. With system caching active, inputs drop to just $0.08 per Million tokens, perfect for high-speed agent loops.'
+        },
+        'claude-opus': {
+            name: 'Claude 3.0 Opus',
+            provider: 'Anthropic',
+            rateInput: 15.00,
+            rateCacheRead: 1.50,  // per million (90% discount)
+            rateCacheWrite: 18.75, // per million (25% penalty)
+            rateOutput: 75.00,
+            tip: 'Opus is Anthropic’s most complex reasoning model. Caching is highly recommended here, as saving 90% on massive reasoning prompts yields significant absolute dollar savings.'
+        },
         'gpt-4o': {
             name: 'GPT-4o',
             provider: 'OpenAI',
@@ -24,6 +42,15 @@ document.addEventListener('DOMContentLoaded', () => {
             rateOutput: 15.00,
             tip: 'OpenAI automatically caches prompts in 1024-token blocks. Prefix matching must be strictly identical from the very beginning of the prompt to trigger the 50% discount.'
         },
+        'gpt-4o-mini': {
+            name: 'GPT-4o-mini',
+            provider: 'OpenAI',
+            rateInput: 0.15,
+            rateCacheRead: 0.075, // per million (50% discount)
+            rateCacheWrite: 0.15, // per million (no penalty)
+            rateOutput: 0.60,
+            tip: 'OpenAI’s lightweight model automatically caches in 1024-token blocks. Perfect for high-frequency, low-cost microservices where prompt identicality is maintained.'
+        },
         'gemini-pro': {
             name: 'Gemini 1.5 Pro',
             provider: 'Google',
@@ -32,6 +59,24 @@ document.addEventListener('DOMContentLoaded', () => {
             rateCacheWrite: 1.25, // per million (no penalty)
             rateOutput: 5.00,
             tip: 'Google Gemini prompt caching is highly cost-effective for extremely large contexts (over 32k tokens), offering a flat 50% discount on cache hits.'
+        },
+        'gemini-flash': {
+            name: 'Gemini 1.5 Flash',
+            provider: 'Google',
+            rateInput: 0.075,
+            rateCacheRead: 0.0375, // per million (50% discount)
+            rateCacheWrite: 0.075, // per million (no penalty)
+            rateOutput: 0.30,
+            tip: 'Gemini Flash is Google’s speed-optimized model. Caching provides a 50% discount on prompts larger than 32k tokens, making large-context apps incredibly cheap.'
+        },
+        'deepseek-v3': {
+            name: 'DeepSeek-V3',
+            provider: 'DeepSeek',
+            rateInput: 0.14,
+            rateCacheRead: 0.07,  // per million (50% discount)
+            rateCacheWrite: 0.14, // per million (no penalty)
+            rateOutput: 0.28,
+            tip: 'DeepSeek-V3 is an extremely low-cost reasoning model with built-in prompt caching. A cache hit reduces input costs to just $0.07 per Million tokens.'
         }
     };
 
@@ -345,7 +390,11 @@ to strictly analyze code using the following developer rules...
         let pyCode = '';
         let nodeCode = '';
 
-        if (modelKey === 'claude-sonnet') {
+        if (modelKey.startsWith('claude-')) {
+            let modelId = 'claude-3-5-sonnet-20241022';
+            if (modelKey === 'claude-haiku') modelId = 'claude-3-5-haiku-20241022';
+            if (modelKey === 'claude-opus') modelId = 'claude-3-opus-20240229';
+
             pyCode = `
 import anthropic
 
@@ -356,7 +405,7 @@ client = anthropic.Anthropic()
 # and set the 'ephemeral' cache_control parameter.
 
 response = client.beta.prompt_caching.messages.create(
-    model="claude-3-5-sonnet-20241022",
+    model="${modelId}",
     max_tokens=1000,
     system=[
         {
@@ -389,7 +438,7 @@ const anthropic = new Anthropic();
 // Keep static context inside system blocks with cache_control type: 'ephemeral'
 async function main() {
   const response = await anthropic.beta.promptCaching.messages.create({
-    model: 'claude-3-5-sonnet-20241022',
+    model: '${modelId}',
     max_tokens: 1000,
     system: [
       {
@@ -409,19 +458,22 @@ async function main() {
 }
 main();
             `.trim();
-        } else if (modelKey === 'gpt-4o') {
+        } else if (modelKey.startsWith('gpt-')) {
+            let modelId = 'gpt-4o';
+            if (modelKey === 'gpt-4o-mini') modelId = 'gpt-4o-mini';
+
             pyCode = `
 import openai
 
 client = openai.OpenAI()
 
-# 💡 OpenAI GPT-4o Prompt Caching is automatic!
+# 💡 OpenAI Prompt Caching is automatic!
 # But it only triggers in blocks of 1024 tokens.
 # To benefit, keep the dynamic variables strictly at the end,
 # and ensure the static system block at the top remains 100% identical.
 
 response = client.chat.completions.create(
-    model="gpt-4o",
+    model="${modelId}",
     messages=[
         {
             "role": "system",
@@ -441,12 +493,12 @@ import OpenAI from 'openai';
 
 const openai = new OpenAI();
 
-// 💡 OpenAI GPT-4o Prompt Caching is automatic!
+// 💡 OpenAI Prompt Caching is automatic!
 // Ensure the massive static block stays exactly identical
 // and keep all dynamic changes (username, date) at the tail end.
 async function main() {
   const completion = await openai.chat.completions.create({
-    model: 'gpt-4o',
+    model: '${modelId}',
     messages: [
       {
         role: 'system',
@@ -462,7 +514,10 @@ async function main() {
 }
 main();
             `.trim();
-        } else if (modelKey === 'gemini-pro') {
+        } else if (modelKey.startsWith('gemini-')) {
+            let modelId = 'models/gemini-1.5-pro-002';
+            if (modelKey === 'gemini-flash') modelId = 'models/gemini-1.5-flash-002';
+
             pyCode = `
 from google import genai
 from google.genai import types
@@ -475,7 +530,7 @@ client = genai.Client()
 
 # 1. Create a cached reference content resource
 cache = client.caches.create(
-    model="models/gemini-1.5-pro-002",
+    model="${modelId}",
     config=types.CreateCachedContentConfig(
         contents=[
             types.Content(
@@ -489,7 +544,7 @@ cache = client.caches.create(
 
 # 2. Query the model referencing the active cache ID
 response = client.models.generate_content(
-    model="models/gemini-1.5-pro-002",
+    model="${modelId}",
     contents="User metadata: Alex_Dev_99\\nUser Question: Explain prompt caching rules",
     config=types.GenerateContentConfig(
         cached_content=cache.name # 🟢 Links active cached context
@@ -508,7 +563,7 @@ const ai = new GoogleGenAI();
 async function main() {
   // 1. Create the cache block
   const cache = await ai.caches.create({
-    model: 'models/gemini-1.5-pro-002',
+    model: '${modelId}',
     config: {
       contents: [
         {
@@ -522,7 +577,7 @@ async function main() {
 
   // 2. Query Gemini utilizing the cache config pointer
   const response = await ai.models.generateContent({
-    model: 'models/gemini-1.5-pro-002',
+    model: '${modelId}',
     contents: 'User metadata: Alex_Dev_99\\nUser Question: Explain prompt caching rules',
     config: {
       cachedContent: cache.name // 🟢 Links active cached context
@@ -532,7 +587,68 @@ async function main() {
 }
 main();
             `.trim();
+        } else if (modelKey === 'deepseek-v3') {
+            pyCode = `
+import openai
+
+# 💡 DeepSeek API uses standard OpenAI SDK but connects to DeepSeek endpoints
+# Caching is fully automatic for prefixes that match 1024-token boundaries.
+# Keep the static guidelines identical at the top, and queries at the tail.
+
+client = openai.OpenAI(
+    base_url="https://api.deepseek.com",
+    api_key="your_deepseek_api_key"
+)
+
+response = client.chat.completions.create(
+    model="deepseek-chat",
+    messages=[
+        {
+            "role": "system",
+            "content": "System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]" # 🟢 Matches cached prefix
+        },
+        {
+            "role": "user",
+            "content": "User metadata: Alex_Dev_99\\nUser Question: Explain prompt caching rules" # 🔴 Dynamic query
         }
+    ]
+)
+print(response.choices[0].message.content)
+            `.trim();
+
+            nodeCode = `
+import OpenAI from 'openai';
+
+// 💡 DeepSeek API uses standard OpenAI SDK but connects to DeepSeek endpoints
+// Caching is fully automatic for prefixes that match 1024-token boundaries.
+const openai = new OpenAI({
+  baseURL: 'https://api.deepseek.com',
+  apiKey: 'your_deepseek_api_key'
+});
+
+async function main() {
+  const completion = await openai.chat.completions.create({
+    model: 'deepseek-chat',
+    messages: [
+      {
+        role: 'system',
+        content: 'System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]' // 🟢 Matches cached prefix
+      },
+      {
+        role: 'user',
+        content: 'User metadata: Alex_Dev_99\\nUser Question: Explain prompt caching rules' // 🔴 Dynamic query
+      }
+    ]
+  });
+  console.log(completion.choices[0].message.content);
+}
+main();
+            `.trim();
+        }
+
+        // Set compiled code block text
+        codeSnippetEl.textContent = activeLang === 'python' ? pyCode : nodeCode;
+    }
 
         // Set compiled code block text
         codeSnippetEl.textContent = activeLang === 'python' ? pyCode : nodeCode;
