@@ -345,7 +345,73 @@
                     </div>
                 </div>
 
-                <!-- Card 6: Dynamic SDK Boilerplate Code Generator -->
+                <!-- Card 6: AetherPing Active Cache Heartbeat Console (Monetization Engine) -->
+                <div class="glass-card heartbeat-card">
+                    <div class="card-header">
+                        <div class="card-icon purple-bg">
+                            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" class="heart-pulse-icon">
+                                <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                            </svg>
+                        </div>
+                        <h3>6. AetherPing Active Cache Heartbeat</h3>
+                        <div class="toggle-switch-wrapper">
+                            <span class="toggle-label" id="heartbeat-status-badge">PROTECTION ACTIVE</span>
+                            <label class="switch">
+                                <input type="checkbox" id="heartbeat-toggle" checked>
+                                <span class="slider-toggle round"></span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="heartbeat-console-grid">
+                            
+                            <!-- Interactive Slider Panel -->
+                            <div class="heartbeat-interactive-panel">
+                                <div class="slider-group">
+                                    <div class="slider-info">
+                                        <span class="slider-label">Time Since Last User Query (Minutes)</span>
+                                        <span class="slider-value" id="val-time-txt">0 mins</span>
+                                    </div>
+                                    <input type="range" id="slider-time" min="0" max="15" step="1" value="0" class="custom-slider purple-track">
+                                    <span class="slider-tip">Anthropic caches expire completely after 5 minutes of idle silence.</span>
+                                </div>
+                            </div>
+
+                            <!-- Visual Cache State Indicator -->
+                            <div class="cache-status-container" id="cache-status-box">
+                                <div class="status-indicator-panel">
+                                    <div class="temp-indicator-wrapper">
+                                        <span class="temp-label">CACHE TEMPERATURE</span>
+                                        <div class="progress-bar-track">
+                                            <div class="progress-bar-fill bg-emerald-gradient" id="cache-temp-fill" style="width: 100%;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="status-details">
+                                        <div class="status-pill state-warm" id="cache-state-pill">WARM (Cache Match)</div>
+                                        <div class="status-subtext" id="cache-state-text">90% Prompt savings are currently secured. All systems green.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Caching Cost Leakage Calculator -->
+                        <div class="cost-leakage-warning" id="leakage-warning" style="display: none;">
+                            <div class="leakage-icon">
+                                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2.5" fill="none">
+                                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                                </svg>
+                            </div>
+                            <div class="leakage-content">
+                                <span class="leakage-title">WARNING: Cache Eviction Detected!</span>
+                                <p class="leakage-desc" id="leakage-desc-text">Your cache has completely cooled down. Next user will pay standard full price and wait 2.4 seconds for the AI start-up read.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 7: Dynamic SDK Boilerplate Code Generator -->
                 <div class="glass-card sdk-card">
                     <div class="card-header">
                         <div class="card-icon cyan-bg">
@@ -354,7 +420,7 @@
                                 <polyline points="8 6 2 12 8 18"></polyline>
                             </svg>
                         </div>
-                        <h3>6. Production Integration Boilerplate</h3>
+                        <h3>7. Production Integration Boilerplate</h3>
                         <div class="sdk-tabs">
                             <button class="sdk-tab active" data-lang="python" id="tab-py">Python SDK</button>
                             <button class="sdk-tab" data-lang="node" id="tab-node">Node.js SDK</button>
@@ -373,7 +439,7 @@
                             </code></pre>
                         </div>
                         <div class="sdk-note">
-                            <span class="note-pill">PRO-TIP</span>
+                            <span class="note-pill heartbeat-pill">AETHERPING REQUIRED</span>
                             <span class="note-text" id="sdk-tip-text">Anthropic caching leverages the `ephemeral` attribute on system blocks. In Sonnet 3.5, cache is held for 5 minutes of inactivity.</span>
                         </div>
                     </div>

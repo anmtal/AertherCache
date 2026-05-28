@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rateCacheRead: 0.30,  // per million (90% discount)
             rateCacheWrite: 3.75, // per million (25% penalty)
             rateOutput: 15.00,    // per million
-            tip: 'Anthropic prompt caching is extremely powerful. Static system prompts and context files at the beginning of your prompt are read at a 90% discount after the first query.'
+            tip: 'Anthropic caches expire completely after 5 minutes of idle silence. To lock in your 90% discount in production, run the AetherPing Heartbeat protocol to ping the API every 4.5 minutes and keep the cache warm.'
         },
         'claude-haiku': {
             name: 'Claude 3.5 Haiku',
@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rateCacheRead: 0.08,  // per million (90% discount)
             rateCacheWrite: 1.00, // per million (25% penalty)
             rateOutput: 4.00,
-            tip: 'Anthropic’s fastest model offers ultra-cheap caching. With system caching active, inputs drop to just $0.08 per Million tokens, perfect for high-speed agent loops.'
+            tip: 'Haiku’s ultra-cheap cache also evicts after 5 minutes of inactivity. Set up the AetherPing Heartbeat protocol to run background keep-warm queries and guarantee your $0.08/M cache read rate.'
         },
         'claude-opus': {
             name: 'Claude 3.0 Opus',
@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rateCacheRead: 1.50,  // per million (90% discount)
             rateCacheWrite: 18.75, // per million (25% penalty)
             rateOutput: 75.00,
-            tip: 'Opus is Anthropic’s most complex reasoning model. Caching is highly recommended here, as saving 90% on massive reasoning prompts yields significant absolute dollar savings.'
+            tip: 'Opus caches expire after 5 minutes. Because Opus inputs are extremely expensive ($15.00/M), letting the cache evict is highly penalizing. Use AetherPing to keep your reasoning context warm 24/7.'
         },
         'gpt-4o': {
             name: 'GPT-4o',
@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rateCacheRead: 2.50,  // per million (50% discount)
             rateCacheWrite: 5.00, // per million (no penalty)
             rateOutput: 15.00,
-            tip: 'OpenAI automatically caches prompts in 1024-token blocks. Prefix matching must be strictly identical from the very beginning of the prompt to trigger the 50% discount.'
+            tip: 'OpenAI automatically caches in 1024-token blocks, but inactive caches evict after brief idle periods (approx 10 minutes). Run the AetherPing Heartbeat script to continuously ping active prefixes.'
         },
         'gpt-4o-mini': {
             name: 'GPT-4o-mini',
@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rateCacheRead: 0.075, // per million (50% discount)
             rateCacheWrite: 0.15, // per million (no penalty)
             rateOutput: 0.60,
-            tip: 'OpenAI’s lightweight model automatically caches in 1024-token blocks. Perfect for high-frequency, low-cost microservices where prompt identicality is maintained.'
+            tip: 'OpenAI’s lightweight model automatically evicts inactive caches. AetherPing maintains low-frequency background heartbeats to ensure high-speed API microservices are kept warm.'
         },
         'gemini-pro': {
             name: 'Gemini 1.5 Pro',
@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rateCacheRead: 0.625, // per million (50% discount)
             rateCacheWrite: 1.25, // per million (no penalty)
             rateOutput: 5.00,
-            tip: 'Google Gemini prompt caching is highly cost-effective for extremely large contexts (over 32k tokens), offering a flat 50% discount on cache hits.'
+            tip: 'Google Gemini prompt caching is highly cost-effective for large contexts, but caches evict after 5 minutes of inactivity (TTL: 300s). Use AetherPing to keep your large context warm 24/7.'
         },
         'gemini-flash': {
             name: 'Gemini 1.5 Flash',
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rateCacheRead: 0.0375, // per million (50% discount)
             rateCacheWrite: 0.075, // per million (no penalty)
             rateOutput: 0.30,
-            tip: 'Gemini Flash is Google’s speed-optimized model. Caching provides a 50% discount on prompts larger than 32k tokens, making large-context apps incredibly cheap.'
+            tip: 'Gemini Flash cache expires after 5 minutes of inactivity. Keep the 50% discount active for large-context applications by automating background AetherPing pings.'
         },
         'deepseek-v3': {
             name: 'DeepSeek-V3',
@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
             rateCacheRead: 0.07,  // per million (50% discount)
             rateCacheWrite: 0.14, // per million (no penalty)
             rateOutput: 0.28,
-            tip: 'DeepSeek-V3 is an extremely low-cost reasoning model with built-in prompt caching. A cache hit reduces input costs to just $0.07 per Million tokens.'
+            tip: 'DeepSeek-V3 caches evict during idle periods (approx 10 minutes). Run AetherPing heartbeats to maintain active cache prefix alignment and lock in the ultra-low $0.07/M caching rate.'
         }
     };
 
@@ -136,6 +136,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const roiDevValueEl = document.getElementById('roi-dev-value');
     const tokenLadderEl = document.getElementById('token-ladder');
     const refactorBadgeEl = document.getElementById('refactor-badge');
+
+    // Heartbeat & Cache Eviction Elements
+    const heartbeatToggle = document.getElementById('heartbeat-toggle');
+    const sliderTime = document.getElementById('slider-time');
+    const txtTime = document.getElementById('val-time-txt');
+    const cacheTempFill = document.getElementById('cache-temp-fill');
+    const cacheStatePill = document.getElementById('cache-state-pill');
+    const cacheStateText = document.getElementById('cache-state-text');
+    const leakageWarning = document.getElementById('leakage-warning');
+    const heartbeatStatusBadge = document.getElementById('heartbeat-status-badge');
 
     // Canvas Editors
     const editorDirty = document.getElementById('editor-dirty');
@@ -246,7 +256,67 @@ document.addEventListener('DOMContentLoaded', () => {
         // Aggregate monthly costs
         // Note: Monthly Queries represents monthly CONVERSATION sessions.
         const totalStandardCostMonthly = (standardInputTokensSum * model.rateInput + standardOutputTokensSum * model.rateOutput) / 1000000 * monthlyQueries;
-        const totalOptimizedCostMonthly = (optimizedInputStandardSum * model.rateInput + optimizedInputCacheReadSum * model.rateCacheRead + optimizedInputCacheWriteSum * model.rateCacheWrite + optimizedOutputTokensSum * model.rateOutput) / 1000000 * monthlyQueries;
+        let totalOptimizedCostMonthly = (optimizedInputStandardSum * model.rateInput + optimizedInputCacheReadSum * model.rateCacheRead + optimizedInputCacheWriteSum * model.rateCacheWrite + optimizedOutputTokensSum * model.rateOutput) / 1000000 * monthlyQueries;
+
+        // --- AetherPing Heartbeat Protection Simulation Logic ---
+        let actualCacheHitRatio = standardInputTokensSum > 0 ? (optimizedInputCacheReadSum / standardInputTokensSum) * 100 : 0;
+        let actualLatencyReduction = actualCacheHitRatio * 0.85; // up to 85% speedup
+        let elapsedMinutes = parseInt(sliderTime.value, 10);
+
+        if (heartbeatToggle.checked) {
+            // Heartbeat Protection Active
+            sliderTime.value = 0; // Lock slide value back to 0 visually
+            txtTime.textContent = "0 mins (Active Protection)";
+            heartbeatStatusBadge.textContent = "PROTECTION ACTIVE";
+            heartbeatStatusBadge.className = "toggle-label";
+            
+            cacheTempFill.style.width = "100%";
+            cacheTempFill.className = "progress-bar-fill bg-emerald-gradient";
+            cacheStatePill.className = "status-pill state-warm";
+            cacheStatePill.textContent = "WARM (Cache Secured)";
+            cacheStateText.textContent = "AetherPing heartbeat actively running. Your caches are locked at 100% WARM 24/7.";
+            leakageWarning.style.display = "none";
+        } else {
+            // Heartbeat Protection Disabled
+            heartbeatStatusBadge.textContent = "PROTECTION DISABLED";
+            heartbeatStatusBadge.className = "toggle-label inactive";
+            txtTime.textContent = `${elapsedMinutes} mins`;
+
+            // Eviction lifespan is 5 mins for Anthropic/Gemini, 10 mins for OpenAI/DeepSeek
+            let evictionMinutes = 5;
+            if (selectedModelKey.startsWith('gpt-') || selectedModelKey === 'deepseek-v3') {
+                evictionMinutes = 10;
+            }
+
+            if (elapsedMinutes < evictionMinutes) {
+                // Cooling down but not yet evicted
+                let tempPercent = Math.max(0, 100 - (elapsedMinutes * (100 / evictionMinutes)));
+                cacheTempFill.style.width = `${tempPercent}%`;
+                cacheTempFill.className = "progress-bar-fill bg-emerald-gradient";
+                cacheStatePill.className = "status-pill state-warm";
+                cacheStatePill.textContent = "WARM (Cooling)";
+                cacheStateText.textContent = `Your cache is cooling down. It will evict completely in ${evictionMinutes - elapsedMinutes} minute(s) of idle silence.`;
+                leakageWarning.style.display = "none";
+            } else {
+                // Evicted! Caches have frozen cold.
+                cacheTempFill.style.width = "0%";
+                cacheTempFill.className = "progress-bar-fill bg-red-gradient";
+                cacheStatePill.className = "status-pill state-cold";
+                cacheStatePill.textContent = "COLD (Evicted!)";
+                
+                const avgTurnCost = (standardInputTokensSum * model.rateInput + standardOutputTokensSum * model.rateOutput) / 1000000;
+                cacheStateText.textContent = "Prompt cache expired. Next user will pay standard full price and wait for full start-up read.";
+                
+                // Show warning banner
+                leakageWarning.style.display = "flex";
+                document.getElementById('leakage-desc-text').textContent = `Your cache has completely cooled down after ${elapsedMinutes} minutes of idle silence. Next user will pay standard full price ($${avgTurnCost.toFixed(4)}) and wait ~2.5 seconds.`;
+                
+                // Overdrive calculation: All optimized pings lose cache hits and standard billing resumes!
+                totalOptimizedCostMonthly = totalStandardCostMonthly;
+                actualCacheHitRatio = 0;
+                actualLatencyReduction = 0;
+            }
+        }
 
         const totalSavingsMonthly = Math.max(0, totalStandardCostMonthly - totalOptimizedCostMonthly);
         const savingsPercentage = totalStandardCostMonthly > 0 ? (totalSavingsMonthly / totalStandardCostMonthly) * 100 : 0;
@@ -258,9 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
         refactorBadgeEl.textContent = `-${Math.round(savingsPercentage)}% Cost`;
 
         // Cache Hit Ratio estimate (percentage of context cached over overall input tokens)
-        const totalInputTokensSum = standardInputTokensSum;
-        const totalCachedInputSum = optimizedInputCacheReadSum;
-        const cacheHitRatio = totalInputTokensSum > 0 ? (totalCachedInputSum / totalInputTokensSum) * 100 : 0;
+        const cacheHitRatio = actualCacheHitRatio;
 
         // Update Caching progress UI
         pctCachingTxt.textContent = `${Math.round(cacheHitRatio)}%`;
@@ -677,10 +745,13 @@ main();
     // --- Interactive Action Handlers ---
 
     // Sliders
-    const inputs = [sliderQueries, sliderStatic, sliderDynamic, sliderTurns, modelSelector];
+    const inputs = [sliderQueries, sliderStatic, sliderDynamic, sliderTurns, modelSelector, sliderTime];
     inputs.forEach(input => {
         input.addEventListener('input', updateSimulation);
     });
+
+    // Heartbeat Switch Toggle
+    heartbeatToggle.addEventListener('change', updateSimulation);
 
     // SDK Code switcher
     tabPy.addEventListener('click', () => {
