@@ -4,6 +4,26 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
+    // --- Backend API Integration Check ---
+    const badgeEl = document.querySelector('.active-badge span:last-child');
+    const badgePulse = document.querySelector('.pulse-dot');
+    
+    async function checkBackend() {
+        try {
+            const res = await fetch('http://localhost:3000/api/health');
+            if (res.ok) {
+                badgeEl.textContent = '⚡ Live API Controller Active';
+                badgeEl.style.color = '#67e8f9';
+                badgePulse.style.backgroundColor = '#06b6d4';
+                badgePulse.style.boxShadow = '0 0 10px #06b6d4';
+                console.log('AetherCache: Connected to functional Node.js backend server! Direct REST integration available.');
+            }
+        } catch (e) {
+            console.log('AetherCache: Running in stand-alone high-fidelity simulation engine mode.');
+        }
+    }
+    checkBackend();
+
     // --- State & Constants ---
     const MODELS = {
         'claude-sonnet': {
