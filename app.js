@@ -86,14 +86,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // LANDING VIEW Selectors
     const modelSelector = document.getElementById('model-selector');
-    const sliderSpend = document.getElementById('slider-spend');
-    const txtSpend = document.getElementById('val-spend-txt');
-
-    const costStandardEl = document.getElementById('cost-standard');
-    const costOptimizedEl = document.getElementById('cost-optimized');
-    const roiSavingsEl = document.getElementById('roi-savings');
-    const annualSavingsEl = document.getElementById('annual-savings');
-    const roiMultiplierEl = document.getElementById('roi-multiplier');
 
     const cacheTempFill = document.getElementById('cache-temp-fill');
     const cacheStatePill = document.getElementById('cache-state-pill');
@@ -328,17 +320,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const modelKey = modelSelector.value;
         const model = MODELS[modelKey];
-        const standardSpend = parseInt(sliderSpend.value, 10);
-
-        // Update spend text and instructions labels
-        txtSpend.textContent = `$${standardSpend.toLocaleString()}`;
 
         if (keyInstructionsTitle && keyInstructionsText) {
             keyInstructionsTitle.textContent = model.instructions.title;
             keyInstructionsText.textContent = model.instructions.text;
         }
-
-        let savingsRatio = 0;
 
         if (!loggedInUser) {
             // State 1: LOGGED OUT Visitor
@@ -357,8 +343,6 @@ document.addEventListener('DOMContentLoaded', () => {
             cacheStatePill.textContent = "INACTIVE";
             cacheStateText.textContent = "Safeguards locked. Please log in to your account and activate AetherPing.";
 
-            savingsRatio = 0;
-
         } else {
             // State 2: LOGGED IN Unpaid Account
             headerStatusContainer.style.display = 'block';
@@ -376,22 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cacheStatePill.className = "status-pill state-cold";
             cacheStatePill.textContent = "INACTIVE (Unpaid)";
             cacheStateText.textContent = "Automated safeguards disabled. Select a premium plan below to unlock protection.";
-
-            savingsRatio = 0;
         }
-
-        // Financial calculations
-        const savingsValue = standardSpend * savingsRatio;
-        const optimizedCost = standardSpend - savingsValue;
-        const annualSavings = savingsValue * 12;
-        const offsetMultiplier = savingsValue / 99;
-
-        // Update Dashboard cost elements
-        costStandardEl.textContent = `$${Math.round(standardSpend).toLocaleString()}`;
-        costOptimizedEl.textContent = `$${Math.round(optimizedCost).toLocaleString()}`;
-        roiSavingsEl.textContent = `$${Math.round(savingsValue).toLocaleString()}`;
-        annualSavingsEl.textContent = `$${Math.round(annualSavings).toLocaleString()} / year`;
-        roiMultiplierEl.textContent = `${offsetMultiplier.toFixed(1)}x`;
     }
 
     // --- Onboarding Event Handlers ---
@@ -547,7 +516,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Inputs Event Listeners ---
     modelSelector.addEventListener('change', updateSimulator);
     modelSelector.addEventListener('input', updateSimulator);
-    sliderSpend.addEventListener('input', updateSimulator);
     
     if (heartbeatToggle) {
         heartbeatToggle.addEventListener('change', updateSimulator);
