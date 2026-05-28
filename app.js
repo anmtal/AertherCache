@@ -1,833 +1,216 @@
 /* ==========================================================================
-   AetherCache Core Simulator Engine - Interactive Computation & Rendering
+   AetherCache B2B App Controller — Smooth Interactive Financial Simulator
    ========================================================================== */
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- Backend API Integration Check ---
-    const badgeEl = document.querySelector('.active-badge span:last-child');
-    const badgePulse = document.querySelector('.pulse-dot');
-    
-    async function checkBackend() {
-        try {
-            const res = await fetch('http://localhost:3000/api/health');
-            if (res.ok) {
-                badgeEl.textContent = '⚡ Live API Controller Active';
-                badgeEl.style.color = '#67e8f9';
-                badgePulse.style.backgroundColor = '#06b6d4';
-                badgePulse.style.boxShadow = '0 0 10px #06b6d4';
-                console.log('AetherCache: Connected to functional Node.js backend server! Direct REST integration available.');
-            }
-        } catch (e) {
-            console.log('AetherCache: Running in stand-alone high-fidelity simulation engine mode.');
-        }
-    }
-    checkBackend();
-
-    // --- State & Constants ---
+    // --- State and Constants ---
     const MODELS = {
         'claude-sonnet': {
             name: 'Claude 3.5 Sonnet',
-            provider: 'Anthropic',
-            rateInput: 3.00,      // per million
-            rateCacheRead: 0.30,  // per million (90% discount)
-            rateCacheWrite: 3.75, // per million (25% penalty)
-            rateOutput: 15.00,    // per million
-            tip: 'To integrate: Replace your standard Anthropic API key with your AetherCache Key, and set base_url to our gateway URL in your Anthropic client constructor.'
+            savingsRatio: 0.75, // Save 75% on average with optimized cache
+            evictionMinutes: 5,
+            tip: 'Anthropic caches expire completely after 5 minutes of idle silence.'
         },
         'claude-haiku': {
-            name: 'Claude-3.5-Haiku',
-            provider: 'Anthropic',
-            rateInput: 0.80,
-            rateCacheRead: 0.08,  // per million (90% discount)
-            rateCacheWrite: 1.00, // per million (25% penalty)
-            rateOutput: 4.00,
-            tip: 'To integrate: Replace your standard Anthropic API key with your AetherCache Key, and set base_url to our gateway URL in your Anthropic client constructor.'
+            name: 'Claude 3.5 Haiku',
+            savingsRatio: 0.70,
+            evictionMinutes: 5,
+            tip: 'Haiku’s cheap prompt cache evicts after 5 minutes of inactivity.'
         },
         'claude-opus': {
             name: 'Claude 3.0 Opus',
-            provider: 'Anthropic',
-            rateInput: 15.00,
-            rateCacheRead: 1.50,  // per million (90% discount)
-            rateCacheWrite: 18.75, // per million (25% penalty)
-            rateOutput: 75.00,
-            tip: 'To integrate: Replace your standard Anthropic API key with your AetherCache Key, and set base_url to our gateway URL in your Anthropic client constructor.'
+            savingsRatio: 0.78,
+            evictionMinutes: 5,
+            tip: 'Opus caches expire after 5 minutes. Letting them evict is highly penalizing.'
         },
         'gpt-4o': {
             name: 'GPT-4o',
-            provider: 'OpenAI',
-            rateInput: 5.00,
-            rateCacheRead: 2.50,  // per million (50% discount)
-            rateCacheWrite: 5.00, // per million (no penalty)
-            rateOutput: 15.00,
-            tip: 'To integrate: Replace your standard OpenAI API key with your AetherCache Key, and set base_url to our gateway URL in your OpenAI client constructor.'
+            savingsRatio: 0.40, // Save 40% on average
+            evictionMinutes: 10,
+            tip: 'OpenAI automatically caches in blocks, but evicts caches after ~10 minutes.'
         },
         'gpt-4o-mini': {
             name: 'GPT-4o-mini',
-            provider: 'OpenAI',
-            rateInput: 0.15,
-            rateCacheRead: 0.075, // per million (50% discount)
-            rateCacheWrite: 0.15, // per million (no penalty)
-            rateOutput: 0.60,
-            tip: 'To integrate: Replace your standard OpenAI API key with your AetherCache Key, and set base_url to our gateway URL in your OpenAI client constructor.'
+            savingsRatio: 0.38,
+            evictionMinutes: 10,
+            tip: 'GPT-4o-mini evicts inactive caches quickly.'
         },
         'gemini-pro': {
             name: 'Gemini 1.5 Pro',
-            provider: 'Google',
-            rateInput: 1.25,
-            rateCacheRead: 0.625, // per million (50% discount)
-            rateCacheWrite: 1.25, // per million (no penalty)
-            rateOutput: 5.00,
-            tip: 'To integrate: Replace your standard Google API key with your AetherCache Key, and set base_url to our gateway URL in your GoogleGenAI client constructor.'
+            savingsRatio: 0.45,
+            evictionMinutes: 5,
+            tip: 'Google Gemini prompt caching evicts after 5 minutes of inactivity.'
         },
         'gemini-flash': {
             name: 'Gemini 1.5 Flash',
-            provider: 'Google',
-            rateInput: 0.075,
-            rateCacheRead: 0.0375, // per million (50% discount)
-            rateCacheWrite: 0.075, // per million (no penalty)
-            rateOutput: 0.30,
-            tip: 'To integrate: Replace your standard Google API key with your AetherCache Key, and set base_url to our gateway URL in your GoogleGenAI client constructor.'
+            savingsRatio: 0.42,
+            evictionMinutes: 5,
+            tip: 'Gemini Flash cache expires after 5 minutes of inactivity.'
         },
         'deepseek-v3': {
             name: 'DeepSeek-V3',
-            provider: 'DeepSeek',
-            rateInput: 0.14,
-            rateCacheRead: 0.07,  // per million (50% discount)
-            rateCacheWrite: 0.14, // per million (no penalty)
-            rateOutput: 0.28,
-            tip: 'To integrate: Replace your standard DeepSeek API key with your AetherCache Key, and set base_url to our gateway URL in your OpenAI client constructor.'
+            savingsRatio: 0.45,
+            evictionMinutes: 10,
+            tip: 'DeepSeek-V3 caches evict during idle periods (approx 10 minutes).'
         }
     };
 
-    // --- DOM Elements ---
+    // --- DOM Selectors ---
     const modelSelector = document.getElementById('model-selector');
-    
-    // Model Rate Labels
-    const rateInputEl = document.getElementById('rate-input');
-    const rateCacheReadEl = document.getElementById('rate-cache-read');
-    const rateCacheWriteEl = document.getElementById('rate-cache-write');
+    const sliderSpend = document.getElementById('slider-spend');
+    const sliderTime = document.getElementById('slider-time');
+    const heartbeatToggle = document.getElementById('heartbeat-toggle');
 
-    // Sliders
-    const sliderQueries = document.getElementById('slider-queries');
-    const sliderStatic = document.getElementById('slider-static');
-    const sliderDynamic = document.getElementById('slider-dynamic');
-    const sliderTurns = document.getElementById('slider-turns');
+    const txtSpend = document.getElementById('val-spend-txt');
+    const txtTime = document.getElementById('val-time-txt');
+    const evictionTip = document.getElementById('eviction-tip');
 
-    // Slider Text values
-    const txtQueries = document.getElementById('val-queries-txt');
-    const txtStatic = document.getElementById('val-static-txt');
-    const txtDynamic = document.getElementById('val-dynamic-txt');
-    const txtTurns = document.getElementById('val-turns-txt');
-
-    // Financial Cards
     const costStandardEl = document.getElementById('cost-standard');
     const costOptimizedEl = document.getElementById('cost-optimized');
     const roiSavingsEl = document.getElementById('roi-savings');
-    
-    // Progress Ratings
-    const pctCachingProgress = document.getElementById('pct-caching-progress');
-    const pctCachingTxt = document.getElementById('pct-caching-txt');
-    const pctLatencyProgress = document.getElementById('pct-latency-progress');
-    const pctLatencyTxt = document.getElementById('pct-latency-txt');
+    const annualSavingsEl = document.getElementById('annual-savings');
+    const roiMultiplierEl = document.getElementById('roi-multiplier');
 
-    // Text descriptions
-    const roiPctEl = document.getElementById('roi-pct');
-    const roiDevValueEl = document.getElementById('roi-dev-value');
-    const tokenLadderEl = document.getElementById('token-ladder');
-    const refactorBadgeEl = document.getElementById('refactor-badge');
-
-    // Heartbeat & Cache Eviction Elements
-    const heartbeatToggle = document.getElementById('heartbeat-toggle');
-    const sliderTime = document.getElementById('slider-time');
-    const txtTime = document.getElementById('val-time-txt');
     const cacheTempFill = document.getElementById('cache-temp-fill');
     const cacheStatePill = document.getElementById('cache-state-pill');
     const cacheStateText = document.getElementById('cache-state-text');
     const leakageWarning = document.getElementById('leakage-warning');
     const heartbeatStatusBadge = document.getElementById('heartbeat-status-badge');
 
-    // Canvas Editors
-    const editorDirty = document.getElementById('editor-dirty');
-    const editorClean = document.getElementById('editor-clean');
+    const apiKeyInput = document.getElementById('api-key-input');
+    const generateBtn = document.getElementById('generate-btn');
+    const outcomeBox = document.getElementById('outcome-box');
+    const gatewayUrlEl = document.getElementById('gateway-url');
+    const copyUrlBtn = document.getElementById('copy-url-btn');
 
-    // SDK Tab Actions
-    const tabPy = document.getElementById('tab-py');
-    const tabNode = document.getElementById('tab-node');
-    const codeSnippetEl = document.getElementById('code-snippet');
-    const copyCodeBtn = document.getElementById('copy-code-btn');
-    const sdkTipTextEl = document.getElementById('sdk-tip-text');
+    // --- Calculation and Simulation Engine ---
+    function updateSimulator() {
+        const modelKey = modelSelector.value;
+        const model = MODELS[modelKey];
 
-    let activeLang = 'python';
+        const standardSpend = parseInt(sliderSpend.value, 10);
+        const elapsedMinutes = parseInt(sliderTime.value, 10);
 
-    // --- Simulation Mathematics ---
-    function updateSimulation() {
-        const selectedModelKey = modelSelector.value;
-        const model = MODELS[selectedModelKey];
+        // Update basic spend text
+        txtSpend.textContent = `$${standardSpend.toLocaleString()}`;
+        evictionTip.textContent = model.tip;
 
-        // Gather numeric slider values
-        const monthlyQueries = parseInt(sliderQueries.value, 10);
-        const staticTokens = parseInt(sliderStatic.value, 10);
-        const dynamicTokens = parseInt(sliderDynamic.value, 10);
-        const turnsCount = parseInt(sliderTurns.value, 10);
+        // Base Savings Ratio
+        let savingsRatio = model.savingsRatio;
+        let cacheIntegrity = 100;
 
-        // Update Slider indicator values on DOM
-        txtQueries.textContent = monthlyQueries.toLocaleString();
-        txtStatic.textContent = staticTokens.toLocaleString();
-        txtDynamic.textContent = dynamicTokens.toLocaleString();
-        txtTurns.textContent = turnsCount.toString();
-
-        // Update Model rates DOM
-        rateInputEl.textContent = `$${model.rateInput.toFixed(2)}`;
-        rateCacheReadEl.textContent = `$${model.rateCacheRead.toFixed(2)}`;
-        rateCacheWriteEl.textContent = `$${model.rateCacheWrite.toFixed(2)}`;
-
-        // Average model output per turn (800 tokens or dynamic * 1.5)
-        const avgOutputTokens = Math.max(800, Math.round(dynamicTokens * 1.5));
-
-        /* --- Cost Formula Calculation ---
-           1 conversation has T turns.
-           Round t (from 1 to T):
-           - In standard non-cached architecture, input contains:
-             S (static) + (t - 1) * (D + R) + D.
-           - In AetherCache optimized architecture:
-             S is cached.
-             Round 1: S is written (S at write rate) + D at standard rate.
-             Round 2+: S is read from cache (S at read rate) + previous dynamic conversation items read at standard input rate.
-        */
-
-        let standardInputTokensSum = 0;
-        let standardOutputTokensSum = 0;
-
-        let optimizedInputStandardSum = 0;
-        let optimizedInputCacheReadSum = 0;
-        let optimizedInputCacheWriteSum = 0;
-        let optimizedOutputTokensSum = 0;
-
-        // Cumulative storage arrays for rendering conversation rounds
-        const roundData = [];
-
-        for (let t = 1; t <= turnsCount; t++) {
-            // Previous dialogue tokens in input: (t-1) rounds of (dynamic user request + output response)
-            const prevDialogueTokens = (t - 1) * (dynamicTokens + avgOutputTokens);
-            
-            // Standard total input tokens for this turn
-            const stdInputTokens = staticTokens + prevDialogueTokens + dynamicTokens;
-            standardInputTokensSum += stdInputTokens;
-            standardOutputTokensSum += avgOutputTokens;
-
-            // Optimized prompt caching calculation
-            let optInputCached = 0;
-            let optInputWrite = 0;
-            let optInputStandard = 0;
-
-            if (t === 1) {
-                // First turn: Caching write occurs for the static system context
-                optInputWrite = staticTokens;
-                optInputStandard = dynamicTokens;
-            } else {
-                // Subsequent turns: static context is read directly from cache prefix
-                optInputCached = staticTokens;
-                // Previous turns dialog history + current turn user message are dynamic and read standard
-                optInputStandard = prevDialogueTokens + dynamicTokens;
-            }
-
-            optimizedInputStandardSum += optInputStandard;
-            optimizedInputCacheReadSum += optInputCached;
-            optimizedInputCacheWriteSum += optInputWrite;
-            optimizedOutputTokensSum += avgOutputTokens;
-
-            // Calculate cost for this specific turn in single conversation run
-            const turnStdCost = (stdInputTokens * model.rateInput + avgOutputTokens * model.rateOutput) / 1000000;
-            const turnOptCost = (optInputStandard * model.rateInput + optInputCached * model.rateCacheRead + optInputWrite * model.rateCacheWrite + avgOutputTokens * model.rateOutput) / 1000000;
-
-            roundData.push({
-                roundNum: t,
-                standardInput: stdInputTokens,
-                optimizedCached: optInputCached,
-                optimizedWrite: optInputWrite,
-                optimizedStandard: optInputStandard,
-                output: avgOutputTokens,
-                stdCost: turnStdCost,
-                optCost: turnOptCost
-            });
-        }
-
-        // Aggregate monthly costs
-        // Note: Monthly Queries represents monthly CONVERSATION sessions.
-        const totalStandardCostMonthly = (standardInputTokensSum * model.rateInput + standardOutputTokensSum * model.rateOutput) / 1000000 * monthlyQueries;
-        let totalOptimizedCostMonthly = (optimizedInputStandardSum * model.rateInput + optimizedInputCacheReadSum * model.rateCacheRead + optimizedInputCacheWriteSum * model.rateCacheWrite + optimizedOutputTokensSum * model.rateOutput) / 1000000 * monthlyQueries;
-
-        // --- AetherPing Heartbeat Protection Simulation Logic ---
-        let actualCacheHitRatio = standardInputTokensSum > 0 ? (optimizedInputCacheReadSum / standardInputTokensSum) * 100 : 0;
-        let actualLatencyReduction = actualCacheHitRatio * 0.85; // up to 85% speedup
-        let elapsedMinutes = parseInt(sliderTime.value, 10);
-
+        // Protection check
         if (heartbeatToggle.checked) {
-            // Heartbeat Protection Active
-            sliderTime.value = 0; // Lock slide value back to 0 visually
-            txtTime.textContent = "0 mins (Active Protection)";
+            // Locking protection visual parameters
+            sliderTime.value = 0;
+            txtTime.textContent = "0 mins (Warm)";
             heartbeatStatusBadge.textContent = "PROTECTION ACTIVE";
             heartbeatStatusBadge.className = "toggle-label";
-            
+
             cacheTempFill.style.width = "100%";
             cacheTempFill.className = "progress-bar-fill bg-emerald-gradient";
             cacheStatePill.className = "status-pill state-warm";
-            cacheStatePill.textContent = "WARM (Cache Secured)";
-            cacheStateText.textContent = "AetherPing heartbeat actively running. Your caches are locked at 100% WARM 24/7.";
+            cacheStatePill.textContent = "100% WARM & SECURED";
+            cacheStateText.textContent = "AetherPing heartbeats are active. Caching discounts are successfully secured 24/7.";
             leakageWarning.style.display = "none";
         } else {
-            // Heartbeat Protection Disabled
+            // Heartbeat disabled, cache cooling down
             heartbeatStatusBadge.textContent = "PROTECTION DISABLED";
             heartbeatStatusBadge.className = "toggle-label inactive";
             txtTime.textContent = `${elapsedMinutes} mins`;
 
-            // Eviction lifespan is 5 mins for Anthropic/Gemini, 10 mins for OpenAI/DeepSeek
-            let evictionMinutes = 5;
-            if (selectedModelKey.startsWith('gpt-') || selectedModelKey === 'deepseek-v3') {
-                evictionMinutes = 10;
-            }
+            const evictionLimit = model.evictionMinutes;
 
-            if (elapsedMinutes < evictionMinutes) {
-                // Cooling down but not yet evicted
-                let tempPercent = Math.max(0, 100 - (elapsedMinutes * (100 / evictionMinutes)));
-                cacheTempFill.style.width = `${tempPercent}%`;
+            if (elapsedMinutes < evictionLimit) {
+                // Cooling state
+                cacheIntegrity = Math.max(0, 100 - (elapsedMinutes * (100 / evictionLimit)));
+                cacheTempFill.style.width = `${cacheIntegrity}%`;
                 cacheTempFill.className = "progress-bar-fill bg-emerald-gradient";
                 cacheStatePill.className = "status-pill state-warm";
-                cacheStatePill.textContent = "WARM (Cooling)";
-                cacheStateText.textContent = `Your cache is cooling down. It will evict completely in ${evictionMinutes - elapsedMinutes} minute(s) of idle silence.`;
+                cacheStatePill.textContent = `${Math.round(cacheIntegrity)}% WARM (Cooling)`;
+                cacheStateText.textContent = `Your cache is cooling down. It will evict completely in ${evictionLimit - elapsedMinutes} minute(s) of idle silence.`;
                 leakageWarning.style.display = "none";
+
+                // Savings ratio decays with temperature
+                savingsRatio = savingsRatio * (cacheIntegrity / 100);
             } else {
-                // Evicted! Caches have frozen cold.
+                // Expired cold state
+                cacheIntegrity = 0;
                 cacheTempFill.style.width = "0%";
                 cacheTempFill.className = "progress-bar-fill bg-red-gradient";
                 cacheStatePill.className = "status-pill state-cold";
-                cacheStatePill.textContent = "COLD (Evicted!)";
+                cacheStatePill.textContent = "EXPIRED (Evicted)";
+                cacheStateText.textContent = "Your prompt cache expired. Caching discounts have been lost.";
                 
-                const avgTurnCost = (standardInputTokensSum * model.rateInput + standardOutputTokensSum * model.rateOutput) / 1000000;
-                cacheStateText.textContent = "Prompt cache expired. Next user will pay standard full price and wait for full start-up read.";
-                
-                // Show warning banner
+                // Alert banner
                 leakageWarning.style.display = "flex";
-                document.getElementById('leakage-desc-text').textContent = `Your cache has completely cooled down after ${elapsedMinutes} minutes of idle silence. Next user will pay standard full price ($${avgTurnCost.toFixed(4)}) and wait ~2.5 seconds.`;
-                
-                // Overdrive calculation: All optimized pings lose cache hits and standard billing resumes!
-                totalOptimizedCostMonthly = totalStandardCostMonthly;
-                actualCacheHitRatio = 0;
-                actualLatencyReduction = 0;
+                document.getElementById('leakage-desc-text').textContent = `Your cache expired after ${elapsedMinutes} minutes of idle silence. Next query will pay full standard cost.`;
+
+                // 0 savings realized
+                savingsRatio = 0;
             }
         }
 
-        const totalSavingsMonthly = Math.max(0, totalStandardCostMonthly - totalOptimizedCostMonthly);
-        const savingsPercentage = totalStandardCostMonthly > 0 ? (totalSavingsMonthly / totalStandardCostMonthly) * 100 : 0;
+        // Financial calculations
+        const savingsValue = standardSpend * savingsRatio;
+        const optimizedCost = standardSpend - savingsValue;
+        const annualSavings = savingsValue * 12;
 
-        // Render values to DOM
-        costStandardEl.textContent = `$${Math.round(totalStandardCostMonthly).toLocaleString()}`;
-        costOptimizedEl.textContent = `$${Math.round(totalOptimizedCostMonthly).toLocaleString()}`;
-        roiSavingsEl.textContent = `$${Math.round(totalSavingsMonthly).toLocaleString()}`;
-        refactorBadgeEl.textContent = `-${Math.round(savingsPercentage)}% Cost`;
+        // Offset ROI (based on $99/mo standard Startup sub)
+        const offsetMultiplier = savingsValue / 99;
 
-        // Cache Hit Ratio estimate (percentage of context cached over overall input tokens)
-        const cacheHitRatio = actualCacheHitRatio;
-
-        // Update Caching progress UI
-        pctCachingTxt.textContent = `${Math.round(cacheHitRatio)}%`;
-        const dashArrayCaching = `${Math.round(cacheHitRatio)}, 100`;
-        pctCachingProgress.setAttribute('stroke-dasharray', dashArrayCaching);
-
-        // Latency reduction approximation (Cached tokens read up to 4x faster)
-        // Average speed boost is highly proportional to cache hit percentage
-        const latencyReduction = cacheHitRatio * 0.85; // up to 85% latency drop
-        pctLatencyTxt.textContent = `${Math.round(latencyReduction)}%`;
-        const dashArrayLatency = `${Math.round(latencyReduction)}, 100`;
-        pctLatencyProgress.setAttribute('stroke-dasharray', dashArrayLatency);
-
-        // Financial SaaS ROI text highlights
-        // Standard SaaS is $99/mo
-        const SAAS_SUB = 99.00;
-        const netRoi = SAAS_SUB > 0 ? (totalSavingsMonthly / SAAS_SUB) * 100 : 0;
-        roiPctEl.textContent = `${Math.round(netRoi).toLocaleString()}%`;
-
-        // 1 junior dev monthly cost equivalent (~$3,000/mo)
-        const juniorDevValue = totalSavingsMonthly / 3000;
-        roiDevValueEl.textContent = juniorDevValue.toFixed(1);
-
-        // --- Render Token Accumulation Graph ---
-        renderTokenLadder(roundData, staticTokens);
-
-        // --- Render Prompt editors ---
-        renderPromptEditors(staticTokens);
-
-        // --- Render Code snippets ---
-        renderCodeSnippets(selectedModelKey, staticTokens);
+        // Update DOM
+        costStandardEl.textContent = `$${Math.round(standardSpend).toLocaleString()}`;
+        costOptimizedEl.textContent = `$${Math.round(optimizedCost).toLocaleString()}`;
+        roiSavingsEl.textContent = `$${Math.round(savingsValue).toLocaleString()}`;
+        annualSavingsEl.textContent = `$${Math.round(annualSavings).toLocaleString()} / year`;
+        roiMultiplierEl.textContent = `${offsetMultiplier.toFixed(1)}x`;
     }
 
-    // --- Graph Rendering Engine ---
-    function renderTokenLadder(roundData, staticTokens) {
-        tokenLadderEl.innerHTML = '';
-
-        // Find max tokens in standard list to scale elements proportionally
-        const maxTokens = Math.max(...roundData.map(r => r.standardInput + r.output));
-
-        roundData.forEach(round => {
-            const ladderRound = document.createElement('div');
-            ladderRound.className = 'ladder-round';
-
-            const roundLabel = document.createElement('span');
-            roundLabel.className = 'round-num';
-            roundLabel.textContent = `Turn ${round.roundNum}`;
-
-            const track = document.createElement('div');
-            track.className = 'round-bar-track';
-
-            // Calculate percentage segments
-            const cachedPct = (round.optimizedCached / maxTokens) * 100;
-            const writePct = (round.optimizedWrite / maxTokens) * 100;
-            const standardInputPct = (round.optimizedStandard / maxTokens) * 100;
-            const outputPct = (round.output / maxTokens) * 100;
-
-            // Segment 1: Cached static context (Emerald)
-            if (cachedPct > 0) {
-                const segCached = document.createElement('div');
-                segCached.className = 'bar-segment bg-emerald';
-                segCached.style.width = `${cachedPct}%`;
-                segCached.setAttribute('data-tooltip', `Cached: ${round.optimizedCached.toLocaleString()} tokens ($${(round.optimizedCached * MODELS[modelSelector.value].rateCacheRead / 1000000).toFixed(4)})`);
-                track.appendChild(segCached);
-            }
-
-            // Segment 2: Caching Write overhead (Cyan, only round 1)
-            if (writePct > 0) {
-                const segWrite = document.createElement('div');
-                segWrite.className = 'bar-segment bg-cyan';
-                segWrite.style.width = `${writePct}%`;
-                segWrite.setAttribute('data-tooltip', `Cache Write: ${round.optimizedWrite.toLocaleString()} tokens ($${(round.optimizedWrite * MODELS[modelSelector.value].rateCacheWrite / 1000000).toFixed(4)})`);
-                track.appendChild(segWrite);
-            }
-
-            // Segment 3: Dynamic user prompts & history (Coral)
-            if (standardInputPct > 0) {
-                const segStdInput = document.createElement('div');
-                segStdInput.className = 'bar-segment bg-coral';
-                segStdInput.style.width = `${standardInputPct}%`;
-                segStdInput.setAttribute('data-tooltip', `Dynamic Input: ${round.optimizedStandard.toLocaleString()} tokens ($${(round.optimizedStandard * MODELS[modelSelector.value].rateInput / 1000000).toFixed(4)})`);
-                track.appendChild(segStdInput);
-            }
-
-            // Segment 4: Model response output (translucent gray/white segment for visualization)
-            if (outputPct > 0) {
-                const segOutput = document.createElement('div');
-                segOutput.className = 'bar-segment';
-                segOutput.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
-                segOutput.style.width = `${outputPct}%`;
-                segOutput.setAttribute('data-tooltip', `Response Output: ${round.output.toLocaleString()} tokens ($${(round.output * MODELS[modelSelector.value].rateOutput / 1000000).toFixed(4)})`);
-                track.appendChild(segOutput);
-            }
-
-            ladderRound.appendChild(roundLabel);
-            ladderRound.appendChild(track);
-            tokenLadderEl.appendChild(ladderRound);
-        });
-    }
-
-    // --- Side-by-Side Prompt Visualizer ---
-    function renderPromptEditors(staticTokens) {
-        // Construct visual representations
-        const kbSizeStr = `${Math.round(staticTokens / 200)} KB`;
-        
-        // Dirty HTML
-        editorDirty.innerHTML = `
-<div class="visual-block block-red">
-    <div class="block-label">⚠️ DYNAMIC VARIABLES (Breaks Cache Prefix Match)</div>
-    <div class="block-info">Placing changing items here causes the cache prefix check to fail immediately for all text below.</div>
-    <pre class="block-code">{{user_name = "Alex_Dev_99"}}
-{{timestamp = "${new Date().toISOString()}"}}</pre>
-</div>
-
-<div class="visual-block block-gray">
-    <div class="block-label">🔒 STATIC RULES & CONTEXT (Charged at 100% Full Price)</div>
-    <div class="block-info">Because the dynamic variables above are constantly changing, this block cannot match the cache prefix.</div>
-    <pre class="block-code"># Size: ${staticTokens.toLocaleString()} tokens (${kbSizeStr})
-You are an advanced AI engineering partner. Your role is
-to strictly analyze code using the following developer rules...
-[Hundreds of lines of static coding specifications here]</pre>
-</div>
-        `.trim();
-
-        // Clean HTML
-        editorClean.innerHTML = `
-<div class="visual-block block-green">
-    <div class="block-label">✅ SECURED CACHED PREFIX (Processed at 90% DISCOUNT)</div>
-    <div class="block-info">This static block stays 100% identical. Billed at just $0.30/M tokens!</div>
-    <pre class="block-code"># Size: ${staticTokens.toLocaleString()} tokens (${kbSizeStr})
-You are an advanced AI engineering partner. Your role is
-to strictly analyze code using the following developer rules...
-[Hundreds of lines of static coding specifications here]</pre>
-</div>
-
-<div class="visual-block block-blue">
-    <div class="block-label">⚡ DYNAMIC PAYLOAD (Appended at the end)</div>
-    <div class="block-info">Dynamic variables are placed here so they do not disturb the cached prefix above.</div>
-    <pre class="block-code">{{user_name = "Alex_Dev_99"}}
-{{timestamp = "${new Date().toISOString()}"}}
-Query: "Explain prompt caching rules"</pre>
-</div>
-        `.trim();
-    }
-
-    // --- SDK Code Generator Templates ---
-    function renderCodeSnippets(modelKey, staticTokens) {
-        const model = MODELS[modelKey];
-        sdkTipTextEl.textContent = model.tip;
-
-        let pyCode = '';
-        let nodeCode = '';
-
-        if (modelKey.startsWith('claude-')) {
-            let modelId = 'claude-3-5-sonnet-20241022';
-            if (modelKey === 'claude-haiku') modelId = 'claude-3-5-haiku-20241022';
-            if (modelKey === 'claude-opus') modelId = 'claude-3-opus-20240229';
-
-            pyCode = `
-import anthropic
-
-# Configure your Anthropic client to route requests through AetherCache:
-client = anthropic.Anthropic(
-    api_key="ae_live_8f9c2d7b...",            # Replace with your secure AetherCache Key
-    base_url="http://localhost:3000/api/v1"    # Replace with your personalized gateway URL
-)
-
-response = client.messages.create(
-    model="${modelId}",
-    max_tokens=1000,
-    system="System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]",
-    messages=[
-        {
-            "role": "user",
-            "content": "User Question: Explain prompt caching rules"
-        }
-    ]
-)
-print(response.content[0].text)
-            `.trim();
-
-            nodeCode = `
-import Anthropic from '@anthropic-ai/sdk';
-
-// Configure your Anthropic client to route requests through AetherCache:
-const anthropic = new Anthropic({
-  apiKey: 'ae_live_8f9c2d7b...',            // Replace with your secure AetherCache Key
-  baseURL: 'http://localhost:3000/api/v1'    // Replace with your personalized gateway URL
-});
-
-async function main() {
-  const response = await anthropic.messages.create({
-    model: '${modelId}',
-    max_tokens: 1000,
-    system: 'System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]',
-    messages: [
-      {
-        role: 'user',
-        content: 'User Question: Explain prompt caching rules'
-      }
-    ]
-  });
-  console.log(response.content[0].text);
-}
-main();
-            `.trim();
-        } else if (modelKey.startsWith('gpt-')) {
-            let modelId = 'gpt-4o';
-            if (modelKey === 'gpt-4o-mini') modelId = 'gpt-4o-mini';
-
-            pyCode = `
-import openai
-
-# Configure your OpenAI client to route requests through AetherCache:
-client = openai.OpenAI(
-    api_key="ae_live_8f9c2d7b...",            # Replace with your secure AetherCache Key
-    base_url="http://localhost:3000/api/v1"    # Replace with your personalized gateway URL
-)
-
-response = client.chat.completions.create(
-    model="${modelId}",
-    messages=[
-        {
-            "role": "system",
-            "content": "System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]"
-        },
-        {
-            "role": "user",
-            "content": "User Question: Explain prompt caching rules"
-        }
-    ]
-)
-print(response.choices[0].message.content)
-            `.trim();
-
-            nodeCode = `
-import OpenAI from 'openai';
-
-// Configure your OpenAI client to route requests through AetherCache:
-const openai = new OpenAI({
-  apiKey: 'ae_live_8f9c2d7b...',            // Replace with your secure AetherCache Key
-  baseURL: 'http://localhost:3000/api/v1'    // Replace with your personalized gateway URL
-});
-
-async function main() {
-  const completion = await openai.chat.completions.create({
-    model: '${modelId}',
-    messages: [
-      {
-        role: 'system',
-        content: 'System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]'
-      },
-      {
-        role: 'user',
-        content: 'User Question: Explain prompt caching rules'
-      }
-    ]
-  });
-  console.log(completion.choices[0].message.content);
-}
-main();
-            `.trim();
-        } else if (modelKey.startsWith('gemini-')) {
-            let modelId = 'models/gemini-1.5-pro-002';
-            if (modelKey === 'gemini-flash') modelId = 'models/gemini-1.5-flash-002';
-
-            pyCode = `
-from google import genai
-
-# Configure your Google GenAI client to route requests through AetherCache:
-client = genai.Client(
-    api_key="ae_live_8f9c2d7b...", # Replace with your secure AetherCache Key
-    http_options={'api_version': 'v1', 'base_url': 'http://localhost:3000/api/v1'} # Replace with your personalized gateway URL
-)
-
-response = client.models.generate_content(
-    model="${modelId}",
-    contents="User Question: Explain prompt caching rules",
-    config={'system_instruction': "System Rules... [Static Context: ${staticTokens.toLocaleString()} tokens]"}
-)
-print(response.text)
-            `.trim();
-
-            nodeCode = `
-import { GoogleGenAI } from '@google/genai';
-
-// Configure your GoogleGenAI client to route requests through AetherCache:
-const ai = new GoogleGenAI({
-  apiKey: 'ae_live_8f9c2d7b...',            // Replace with your secure AetherCache Key
-  baseURL: 'http://localhost:3000/api/v1'    // Replace with your personalized gateway URL
-});
-
-async function main() {
-  const response = await ai.models.generateContent({
-    model: '${modelId}',
-    contents: 'User Question: Explain prompt caching rules',
-    config: {
-      systemInstruction: 'System Rules... [Static Context: ${staticTokens.toLocaleString()} tokens]'
-    }
-  });
-  console.log(response.text);
-}
-main();
-            `.trim();
-        } else if (modelKey === 'deepseek-v3') {
-            pyCode = `
-import openai
-
-# Configure your OpenAI client (for DeepSeek) to route requests through AetherCache:
-client = openai.OpenAI(
-    api_key="ae_live_8f9c2d7b...",            # Replace with your secure AetherCache Key
-    base_url="http://localhost:3000/api/v1"    # Replace with your personalized gateway URL
-)
-
-response = client.chat.completions.create(
-    model="deepseek-chat",
-    messages=[
-        {
-            "role": "system",
-            "content": "System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]"
-        },
-        {
-            "role": "user",
-            "content": "User Question: Explain prompt caching rules"
-        }
-    ]
-)
-print(response.choices[0].message.content)
-            `.trim();
-
-            nodeCode = `
-import OpenAI from 'openai';
-
-// Configure your OpenAI client (for DeepSeek) to route requests through AetherCache:
-const openai = new OpenAI({
-  apiKey: 'ae_live_8f9c2d7b...',            // Replace with your secure AetherCache Key
-  baseURL: 'http://localhost:3000/api/v1'    // Replace with your personalized gateway URL
-});
-
-async function main() {
-  const completion = await openai.chat.completions.create({
-    model: 'deepseek-chat',
-    messages: [
-      {
-        role: 'system',
-        content: 'System Rules... [Static Guidelines: ${staticTokens.toLocaleString()} tokens]'
-      },
-      {
-        role: 'user',
-        content: 'User Question: Explain prompt caching rules'
-      }
-    ]
-  });
-  console.log(completion.choices[0].message.content);
-}
-main();
-            `.trim();
-        }
-
-        // Set compiled code block text
-        codeSnippetEl.textContent = activeLang === 'python' ? pyCode : nodeCode;
-    }
-
-    // --- Interactive Action Handlers ---
-
-    // Sliders
-    const inputs = [sliderQueries, sliderStatic, sliderDynamic, sliderTurns, modelSelector, sliderTime];
-    inputs.forEach(input => {
-        input.addEventListener('input', updateSimulation);
-    });
-
-    // Heartbeat Switch Toggle
-    heartbeatToggle.addEventListener('change', updateSimulation);
-
-    // SDK Code switcher
-    tabPy.addEventListener('click', () => {
-        tabPy.classList.add('active');
-        tabNode.classList.remove('active');
-        activeLang = 'python';
-        updateSimulation();
-    });
-
-    tabNode.addEventListener('click', () => {
-        tabNode.classList.add('active');
-        tabPy.classList.remove('active');
-        activeLang = 'node';
-        updateSimulation();
-    });
-
-    // --- Live Caching BYOK Test Handler ---
-    const apiKeyInput = document.getElementById('api-key-input');
-    const livePingBtn = document.getElementById('live-ping-btn');
-    const livePingStatus = document.getElementById('live-ping-status');
-    const pingStatusLight = document.getElementById('ping-status-light');
-    const pingStatusText = document.getElementById('ping-status-text');
-
-    livePingBtn.addEventListener('click', async () => {
-        const apiKey = apiKeyInput.value.trim();
-        if (!apiKey) {
-            livePingStatus.style.display = 'flex';
-            pingStatusLight.className = 'status-light error';
-            pingStatusText.textContent = 'Error: API key is empty!';
-            pingStatusText.style.color = '#ef4444';
+    // --- Onboarding base URL Generator ---
+    generateBtn.addEventListener('click', () => {
+        const key = apiKeyInput.value.trim();
+        if (!key) {
+            alert('Please enter a secure API key first.');
             return;
         }
 
-        // Show loading state
-        livePingStatus.style.display = 'flex';
-        pingStatusLight.className = 'status-light pinging';
-        pingStatusText.textContent = 'Encrypting Vault Key & Firing Ping...';
-        pingStatusText.style.color = '#c084fc';
-        livePingBtn.disabled = true;
-
-        const modelKey = modelSelector.value;
-        let provider = 'anthropic';
-        let modelId = 'claude-3-5-sonnet-20241022';
-
-        if (modelKey.startsWith('claude-')) {
-            provider = 'anthropic';
-            if (modelKey === 'claude-haiku') modelId = 'claude-3-5-haiku-20241022';
-            if (modelKey === 'claude-opus') modelId = 'claude-3-opus-20240229';
-        } else if (modelKey.startsWith('gpt-')) {
-            provider = 'openai';
-            modelId = modelKey === 'gpt-4o' ? 'gpt-4o' : 'gpt-4o-mini';
-        } else if (modelKey.startsWith('gemini-')) {
-            provider = 'google';
-            modelId = modelKey === 'gemini-pro' ? 'models/gemini-1.5-pro-002' : 'models/gemini-1.5-flash-002';
-        } else if (modelKey === 'deepseek-v3') {
-            provider = 'deepseek';
-            modelId = 'deepseek-chat';
-        }
-
-        // Construct a temporary static system context representing the slider static size
-        const staticSize = parseInt(sliderStatic.value, 10);
-        // Standard average token length (approx 4 characters)
-        const dummySystemContext = "You are a secure coding bot. System rules: " + "a ".repeat(staticSize);
-
-        try {
-            const response = await fetch('http://localhost:3000/api/ping/run', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    apiKey: apiKey,
-                    provider: provider,
-                    model: modelId,
-                    staticPrompt: dummySystemContext
-                })
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                pingStatusLight.className = 'status-light success';
-                const cacheHitStr = data.cacheHit ? '🟢 CACHE HIT' : '🟡 CACHE MISS (Warm-up)';
-                pingStatusText.textContent = `Success! Latency: ${data.latencyMs}ms | Caching: ${cacheHitStr} | Saved: $${data.financials.costSaved.toFixed(5)}`;
-                pingStatusText.style.color = '#34d399';
-
-                // Real-time Dashboard UI Overdrive!
-                // Temporarily override the simulation outputs with actual live telemetry!
-                costStandardEl.textContent = `$${(data.financials.standardCost * parseInt(sliderQueries.value, 10)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                costOptimizedEl.textContent = `$${(data.financials.actualCost * parseInt(sliderQueries.value, 10)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                roiSavingsEl.textContent = `$${(data.financials.costSaved * parseInt(sliderQueries.value, 10)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
-                
-                const realCacheRatio = data.totalInput > 0 ? (data.tokensRead / data.totalInput) * 100 : 0;
-                pctCachingTxt.textContent = `${Math.round(realCacheRatio)}%`;
-                pctCachingProgress.setAttribute('stroke-dasharray', `${Math.round(realCacheRatio)}, 100`);
-
-                console.log('AetherCache Live Telemetry:', data);
-            } else {
-                throw new Error(data.error || 'Server responded with an execution error');
-            }
-        } catch (error) {
-            pingStatusLight.className = 'status-light error';
-            pingStatusText.textContent = `Live Test Failed: ${error.message}`;
-            pingStatusText.style.color = '#fca5a5';
-            console.error('AetherCache Connection Error:', error);
-        } finally {
-            livePingBtn.disabled = false;
-        }
+        // Simulate secure AES hash generation for proxy mapping
+        const shortHash = Math.random().toString(36).substring(2, 10);
+        
+        gatewayUrlEl.textContent = `https://api.aethercache.com/v1/ae_live_${shortHash}`;
+        outcomeBox.style.display = 'flex';
+        
+        // Auto scroll to outcome box smoothly
+        outcomeBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
 
-    // Copy to clipboard
-    copyCodeBtn.addEventListener('click', () => {
-        const textToCopy = codeSnippetEl.textContent;
-        navigator.clipboard.writeText(textToCopy).then(() => {
-            copyCodeBtn.classList.add('copied');
-            const btnSpan = copyCodeBtn.querySelector('span');
-            const originalText = btnSpan.textContent;
+    // --- Copy to clipboard action ---
+    copyUrlBtn.addEventListener('click', () => {
+        const urlText = gatewayUrlEl.textContent;
+        navigator.clipboard.writeText(urlText).then(() => {
+            copyUrlBtn.classList.add('copied');
+            const btnSpan = copyUrlBtn.querySelector('span');
             btnSpan.textContent = 'Copied!';
             
             setTimeout(() => {
-                copyCodeBtn.classList.remove('copied');
-                btnSpan.textContent = originalText;
+                copyUrlBtn.classList.remove('copied');
+                btnSpan.textContent = 'Copy URL';
             }, 2000);
         }).catch(err => {
             console.error('Clipboard copy failed: ', err);
         });
     });
 
-    // Initial Trigger
-    updateSimulation();
+    // --- Event Listeners ---
+    const inputs = [modelSelector, sliderSpend, sliderTime];
+    inputs.forEach(input => {
+        input.addEventListener('input', updateSimulator);
+    });
+
+    heartbeatToggle.addEventListener('change', updateSimulator);
+
+    // Run Initial Simulation calculations
+    updateSimulator();
 });
