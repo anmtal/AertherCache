@@ -697,6 +697,98 @@ main();
         updateSimulation();
     });
 
+    // --- Live Caching BYOK Test Handler ---
+    const apiKeyInput = document.getElementById('api-key-input');
+    const livePingBtn = document.getElementById('live-ping-btn');
+    const livePingStatus = document.getElementById('live-ping-status');
+    const pingStatusLight = document.getElementById('ping-status-light');
+    const pingStatusText = document.getElementById('ping-status-text');
+
+    livePingBtn.addEventListener('click', async () => {
+        const apiKey = apiKeyInput.value.trim();
+        if (!apiKey) {
+            livePingStatus.style.display = 'flex';
+            pingStatusLight.className = 'status-light error';
+            pingStatusText.textContent = 'Error: API key is empty!';
+            pingStatusText.style.color = '#ef4444';
+            return;
+        }
+
+        // Show loading state
+        livePingStatus.style.display = 'flex';
+        pingStatusLight.className = 'status-light pinging';
+        pingStatusText.textContent = 'Encrypting Vault Key & Firing Ping...';
+        pingStatusText.style.color = '#c084fc';
+        livePingBtn.disabled = true;
+
+        const modelKey = modelSelector.value;
+        let provider = 'anthropic';
+        let modelId = 'claude-3-5-sonnet-20241022';
+
+        if (modelKey.startsWith('claude-')) {
+            provider = 'anthropic';
+            if (modelKey === 'claude-haiku') modelId = 'claude-3-5-haiku-20241022';
+            if (modelKey === 'claude-opus') modelId = 'claude-3-opus-20240229';
+        } else if (modelKey.startsWith('gpt-')) {
+            provider = 'openai';
+            modelId = modelKey === 'gpt-4o' ? 'gpt-4o' : 'gpt-4o-mini';
+        } else if (modelKey.startsWith('gemini-')) {
+            provider = 'google';
+            modelId = modelKey === 'gemini-pro' ? 'models/gemini-1.5-pro-002' : 'models/gemini-1.5-flash-002';
+        } else if (modelKey === 'deepseek-v3') {
+            provider = 'deepseek';
+            modelId = 'deepseek-chat';
+        }
+
+        // Construct a temporary static system context representing the slider static size
+        const staticSize = parseInt(sliderStatic.value, 10);
+        // Standard average token length (approx 4 characters)
+        const dummySystemContext = "You are a secure coding bot. System rules: " + "a ".repeat(staticSize);
+
+        try {
+            const response = await fetch('http://localhost:3000/api/ping/run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    apiKey: apiKey,
+                    provider: provider,
+                    model: modelId,
+                    staticPrompt: dummySystemContext
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                pingStatusLight.className = 'status-light success';
+                const cacheHitStr = data.cacheHit ? '🟢 CACHE HIT' : '🟡 CACHE MISS (Warm-up)';
+                pingStatusText.textContent = `Success! Latency: ${data.latencyMs}ms | Caching: ${cacheHitStr} | Saved: $${data.financials.costSaved.toFixed(5)}`;
+                pingStatusText.style.color = '#34d399';
+
+                // Real-time Dashboard UI Overdrive!
+                // Temporarily override the simulation outputs with actual live telemetry!
+                costStandardEl.textContent = `$${(data.financials.standardCost * parseInt(sliderQueries.value, 10)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                costOptimizedEl.textContent = `$${(data.financials.actualCost * parseInt(sliderQueries.value, 10)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                roiSavingsEl.textContent = `$${(data.financials.costSaved * parseInt(sliderQueries.value, 10)).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                
+                const realCacheRatio = data.totalInput > 0 ? (data.tokensRead / data.totalInput) * 100 : 0;
+                pctCachingTxt.textContent = `${Math.round(realCacheRatio)}%`;
+                pctCachingProgress.setAttribute('stroke-dasharray', `${Math.round(realCacheRatio)}, 100`);
+
+                console.log('AetherCache Live Telemetry:', data);
+            } else {
+                throw new Error(data.error || 'Server responded with an execution error');
+            }
+        } catch (error) {
+            pingStatusLight.className = 'status-light error';
+            pingStatusText.textContent = `Live Test Failed: ${error.message}`;
+            pingStatusText.style.color = '#fca5a5';
+            console.error('AetherCache Connection Error:', error);
+        } finally {
+            livePingBtn.disabled = false;
+        }
+    });
+
     // Copy to clipboard
     copyCodeBtn.addEventListener('click', () => {
         const textToCopy = codeSnippetEl.textContent;

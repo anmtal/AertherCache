@@ -92,6 +92,34 @@
                                 <span class="rate-val text-purple" id="rate-cache-write">$3.75</span>
                             </div>
                         </div>
+
+                        <!-- Live API Key Integration (For Functional SaaS BYOK) -->
+                        <div class="api-key-integration">
+                            <div class="form-group">
+                                <label for="api-key-input">Configure Developer API Key (BYOK)</label>
+                                <div class="api-input-wrapper">
+                                    <input type="password" id="api-key-input" placeholder="Paste your API key (sk-...)" class="api-key-field">
+                                    <span class="secure-badge">
+                                        <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none">
+                                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                        </svg>
+                                        AES-256
+                                    </span>
+                                </div>
+                                <span class="api-input-tip">Keys are encrypted locally in-memory. Never shared with third parties.</span>
+                            </div>
+                            <button class="live-test-btn" id="live-ping-btn">
+                                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none">
+                                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                </svg>
+                                Run Live Caching Test
+                            </button>
+                            <div class="live-ping-status" id="live-ping-status" style="display: none;">
+                                <span class="status-light" id="ping-status-light"></span>
+                                <span class="status-text" id="ping-status-text">Ping idle...</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
