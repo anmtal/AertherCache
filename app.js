@@ -95,6 +95,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const cacheTempFill = document.getElementById('cache-temp-fill');
     const cacheStatePill = document.getElementById('cache-state-pill');
     const cacheStateText = document.getElementById('cache-state-text');
+    const heartbeatToggle = document.getElementById('heartbeat-toggle');
+    const heartbeatStatusBadge = document.getElementById('heartbeat-status-badge');
 
     const apiKeyInput = document.getElementById('api-key-input');
     const generateBtn = document.getElementById('generate-btn');
@@ -197,17 +199,40 @@ document.addEventListener('DOMContentLoaded', () => {
             keyInstructionsText.textContent = model.instructions.text;
         }
 
-        // Cache remains 100% warm permanently since heartbeats are automated by our servers
-        cacheTempFill.style.width = "100%";
-        cacheTempFill.className = "progress-bar-fill bg-emerald-gradient";
-        cacheStatePill.className = "status-pill state-warm";
-        cacheStatePill.textContent = "100% WARM & SECURED";
-        
-        // Dynamic message displaying the System's auto-scheduled ping interval
-        cacheStateText.textContent = `Active protection enabled. AetherPing automatically sends a warm-up heartbeat every ${model.bestPingMinutes} minutes based on ${model.name}'s specifications.`;
+        let savingsRatio = 0;
+
+        // Interactive toggle checking
+        if (heartbeatToggle && heartbeatToggle.checked) {
+            // Heartbeats enabled
+            heartbeatStatusBadge.textContent = "PROTECTION ACTIVE";
+            heartbeatStatusBadge.className = "toggle-label";
+
+            cacheTempFill.style.width = "100%";
+            cacheTempFill.className = "progress-bar-fill bg-emerald-gradient";
+            cacheStatePill.className = "status-pill state-warm";
+            cacheStatePill.textContent = "100% WARM & SECURED";
+            
+            // Dynamic message displaying the System's auto-scheduled ping interval
+            cacheStateText.textContent = `Active protection enabled. AetherPing automatically sends a warm-up heartbeat every ${model.bestPingMinutes} minutes based on ${model.name}'s specifications.`;
+
+            // savings ratio is applied fully
+            savingsRatio = model.savingsRatio;
+        } else {
+            // Heartbeats disabled
+            heartbeatStatusBadge.textContent = "PROTECTION INACTIVE";
+            heartbeatStatusBadge.className = "toggle-label inactive";
+
+            cacheTempFill.style.width = "0%";
+            cacheTempFill.className = "progress-bar-fill bg-red-gradient";
+            cacheStatePill.className = "status-pill state-cold";
+            cacheStatePill.textContent = "EXPIRED (Evicted)";
+            cacheStateText.textContent = "AetherPing is disabled. Your prompt cache has cooled down, and you are paying standard prices.";
+
+            // 0 savings realized
+            savingsRatio = 0;
+        }
 
         // Financial calculations
-        const savingsRatio = model.savingsRatio;
         const savingsValue = standardSpend * savingsRatio;
         const optimizedCost = standardSpend - savingsValue;
         const annualSavings = savingsValue * 12;
@@ -320,10 +345,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Inputs Event Listeners ---
-    const inputs = [modelSelector, sliderSpend];
-    inputs.forEach(input => {
-        input.addEventListener('input', updateSimulator);
-    });
+    // Use both 'change' and 'input' to guarantee updates trigger instantly on all browsers
+    modelSelector.addEventListener('change', updateSimulator);
+    modelSelector.addEventListener('input', updateSimulator);
+    sliderSpend.addEventListener('input', updateSimulator);
+    
+    if (heartbeatToggle) {
+        heartbeatToggle.addEventListener('change', updateSimulator);
+    }
 
     // Run Initial Simulation calculations
     updateSimulator();
