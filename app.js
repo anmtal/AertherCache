@@ -670,10 +670,6 @@ main();
         codeSnippetEl.textContent = activeLang === 'python' ? pyCode : nodeCode;
     }
 
-        // Set compiled code block text
-        codeSnippetEl.textContent = activeLang === 'python' ? pyCode : nodeCode;
-    }
-
     // --- Interactive Action Handlers ---
 
     // Sliders
