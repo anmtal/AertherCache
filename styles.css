@@ -1301,22 +1301,73 @@ input:checked + .slider-toggle::before {
 
 /* Header profile info styles */
 .login-btn {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    color: var(--text-primary);
-    padding: 8px 18px;
+    background: linear-gradient(135deg, var(--color-purple) 0%, #7c3aed 100%);
+    border: none;
+    color: white;
+    padding: 10px 22px;
     border-radius: 12px;
     font-size: 13px;
     font-family: var(--font-heading);
     font-weight: 700;
     cursor: pointer;
+    box-shadow: 0 4px 15px rgba(168, 85, 247, 0.35);
     transition: var(--transition-smooth);
 }
 
 .login-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(255, 255, 255, 0.15);
     transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(168, 85, 247, 0.5);
+}
+
+/* Dynamic Subscription State Badges */
+.unpaid-badge {
+    font-size: 11px;
+    font-weight: 750;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-muted);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 4px 10px;
+    border-radius: 99px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.paid-account-badge {
+    font-size: 11px;
+    font-weight: 750;
+    background: var(--color-purple-glow);
+    color: #e9d5ff;
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    padding: 4px 10px;
+    border-radius: 99px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.active-badge-glowing {
+    font-size: 11px;
+    font-weight: 750;
+    background: var(--color-emerald-glow);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    padding: 4px 10px;
+    border-radius: 99px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.active-badge-glowing .pulse-dot {
+    margin-right: 2px;
+}
+
+.state-unpaid {
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-muted);
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .user-profile {

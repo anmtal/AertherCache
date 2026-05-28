@@ -113,6 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const userProfile = document.getElementById('user-profile');
     const userEmailText = document.getElementById('user-email-text');
     const logoutBtn = document.getElementById('logout-btn');
+    const headerStatusContainer = document.getElementById('header-status-container');
 
     const authModal = document.getElementById('auth-modal');
     const modalCloseBtn = document.getElementById('modal-close-btn');
@@ -125,27 +126,36 @@ document.addEventListener('DOMContentLoaded', () => {
     // Live Telemetry Indicator
     const liveTelemetryBadge = document.querySelector('.live-telemetry-badge');
 
-    // --- Authentication Actions & UI Updates ---
+    // --- Onboarding & State Management ---
     function checkLoginState() {
         const loggedInUser = localStorage.getItem('aether_user');
+        const isPaid = localStorage.getItem('aether_paid') === 'true';
+
         if (loggedInUser) {
             loginBtn.style.display = 'none';
             userProfile.style.display = 'flex';
             userEmailText.textContent = loggedInUser;
-            // Set user initials as avatar
             document.querySelector('.user-avatar').textContent = loggedInUser.charAt(0).toUpperCase();
             
-            // If API key is saved, automatically populate outcome gateway URL
+            // Handle Gateway sync and key vault outcomes
             const savedKey = localStorage.getItem('aether_key_vaulted');
-            if (savedKey) {
+            if (savedKey && isPaid) {
                 apiKeyInput.value = savedKey;
                 generateGatewayURL(savedKey, loggedInUser);
+            } else {
+                outcomeBox.style.display = 'none';
+                if (!isPaid) {
+                    apiKeyInput.value = '';
+                    apiKeyInput.placeholder = 'Please purchase a plan below to unlock secure gateway...';
+                }
             }
         } else {
             loginBtn.style.display = 'block';
             userProfile.style.display = 'none';
             outcomeBox.style.display = 'none';
+            headerStatusContainer.style.display = 'none';
             apiKeyInput.value = '';
+            apiKeyInput.placeholder = 'Please sign in to configure key settings...';
         }
     }
 
@@ -165,16 +175,13 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSimulator();
     }
 
-    // --- Onboarding base URL Generator ---
     function generateGatewayURL(key, email) {
-        // Derive a unique hash from email or inputs for personalized gateway endpoint
         const hashBase = email || 'guest';
         const uniqueHash = btoa(hashBase).substring(0, 8).toLowerCase();
         
         gatewayUrlEl.textContent = `https://api.aethercache.com/v1/ae_live_${uniqueHash}`;
         outcomeBox.style.display = 'flex';
 
-        // Swap the telemetry dashboard badge to denote active connection
         if (liveTelemetryBadge) {
             liveTelemetryBadge.textContent = '📊 Gateway Sync Live';
             liveTelemetryBadge.style.backgroundColor = 'rgba(6, 182, 212, 0.1)';
@@ -187,57 +194,107 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateSimulator() {
         const modelKey = modelSelector.value;
         const model = MODELS[modelKey];
-
         const standardSpend = parseInt(sliderSpend.value, 10);
 
-        // Update spend text
+        // Update spend text and instruction labels
         txtSpend.textContent = `$${standardSpend.toLocaleString()}`;
 
-        // Dynamic API Key instructions based on the selected LLM Model
         if (keyInstructionsTitle && keyInstructionsText) {
             keyInstructionsTitle.textContent = model.instructions.title;
             keyInstructionsText.textContent = model.instructions.text;
         }
 
+        const loggedInUser = localStorage.getItem('aether_user');
+        const isPaid = localStorage.getItem('aether_paid') === 'true';
+
         let savingsRatio = 0;
 
-        // Interactive toggle checking
-        if (heartbeatToggle && heartbeatToggle.checked) {
-            // Heartbeats enabled
-            heartbeatStatusBadge.textContent = "PROTECTION ACTIVE";
-            heartbeatStatusBadge.className = "toggle-label";
-
-            cacheTempFill.style.width = "100%";
-            cacheTempFill.className = "progress-bar-fill bg-emerald-gradient";
-            cacheStatePill.className = "status-pill state-warm";
-            cacheStatePill.textContent = "100% WARM & SECURED";
+        // Customer Subscription Lifecycle Decision Tree
+        if (!loggedInUser) {
+            // State 1: LOGGED OUT Visitor
+            headerStatusContainer.style.display = 'none';
             
-            // Dynamic message displaying the System's auto-scheduled ping interval
-            cacheStateText.textContent = `Active protection enabled. AetherPing automatically sends a warm-up heartbeat every ${model.bestPingMinutes} minutes based on ${model.name}'s specifications.`;
-
-            // savings ratio is applied fully
-            savingsRatio = model.savingsRatio;
-        } else {
-            // Heartbeats disabled
-            heartbeatStatusBadge.textContent = "PROTECTION INACTIVE";
-            heartbeatStatusBadge.className = "toggle-label inactive";
+            if (heartbeatToggle) {
+                heartbeatToggle.disabled = true;
+                heartbeatToggle.checked = false;
+                heartbeatStatusBadge.textContent = "PROTECTION LOCKED";
+                heartbeatStatusBadge.className = "toggle-label inactive";
+            }
 
             cacheTempFill.style.width = "0%";
             cacheTempFill.className = "progress-bar-fill bg-red-gradient";
             cacheStatePill.className = "status-pill state-cold";
-            cacheStatePill.textContent = "EXPIRED (Evicted)";
-            cacheStateText.textContent = "AetherPing is disabled. Your prompt cache has cooled down, and you are paying standard prices.";
+            cacheStatePill.textContent = "INACTIVE";
+            cacheStateText.textContent = "Safeguards locked. Please log in to your account and activate AetherPing.";
 
-            // 0 savings realized
             savingsRatio = 0;
+
+        } else if (!isPaid) {
+            // State 2: LOGGED IN Unpaid Account
+            headerStatusContainer.style.display = 'block';
+            headerStatusContainer.innerHTML = '<span class="unpaid-badge">● Unpaid Account</span>';
+
+            if (heartbeatToggle) {
+                heartbeatToggle.disabled = true;
+                heartbeatToggle.checked = false;
+                heartbeatStatusBadge.textContent = "PROTECTION UNPAID";
+                heartbeatStatusBadge.className = "toggle-label inactive";
+            }
+
+            cacheTempFill.style.width = "0%";
+            cacheTempFill.className = "progress-bar-fill bg-red-gradient";
+            cacheStatePill.className = "status-pill state-cold";
+            cacheStatePill.textContent = "INACTIVE (Unpaid)";
+            cacheStateText.textContent = "Automated safeguards disabled. Select a premium plan below to unlock protection.";
+
+            savingsRatio = 0;
+
+        } else {
+            // State 3 & 4: LOGGED IN Paid Account
+            headerStatusContainer.style.display = 'block';
+            
+            if (heartbeatToggle) {
+                heartbeatToggle.disabled = false;
+            }
+
+            if (heartbeatToggle && heartbeatToggle.checked) {
+                // State 4: Paid Account, Safeguards Active
+                headerStatusContainer.innerHTML = '<div class="active-badge-glowing"><span class="pulse-dot"></span><span>Secure Gateway Active</span></div>';
+                
+                heartbeatStatusBadge.textContent = "PROTECTION ACTIVE";
+                heartbeatStatusBadge.className = "toggle-label";
+
+                cacheTempFill.style.width = "100%";
+                cacheTempFill.className = "progress-bar-fill bg-emerald-gradient";
+                cacheStatePill.className = "status-pill state-warm";
+                cacheStatePill.textContent = "100% WARM & SECURED";
+                cacheStateText.textContent = `Active protection enabled. AetherPing automatically sends a warm-up heartbeat every ${model.bestPingMinutes} minutes based on ${model.name}'s specifications.`;
+
+                // Savings are fully unlocked
+                savingsRatio = model.savingsRatio;
+            } else {
+                // State 3: Paid Account, Safeguards Off
+                headerStatusContainer.innerHTML = '<span class="paid-account-badge">● Paid (Inactive)</span>';
+                
+                if (heartbeatStatusBadge) {
+                    heartbeatStatusBadge.textContent = "PROTECTION INACTIVE";
+                    heartbeatStatusBadge.className = "toggle-label inactive";
+                }
+
+                cacheTempFill.style.width = "0%";
+                cacheTempFill.className = "progress-bar-fill bg-red-gradient";
+                cacheStatePill.className = "status-pill state-cold";
+                cacheStatePill.textContent = "INACTIVE";
+                cacheStateText.textContent = "Protection unlocked! Toggle the switch above to start saving up to 90%.";
+
+                savingsRatio = 0;
+            }
         }
 
         // Financial calculations
         const savingsValue = standardSpend * savingsRatio;
         const optimizedCost = standardSpend - savingsValue;
         const annualSavings = savingsValue * 12;
-
-        // Offset ROI (based on $99/mo standard Startup sub)
         const offsetMultiplier = savingsValue / 99;
 
         // Update Dashboard cost elements
@@ -252,11 +309,17 @@ document.addEventListener('DOMContentLoaded', () => {
     generateBtn.addEventListener('click', () => {
         const key = apiKeyInput.value.trim();
         const loggedInUser = localStorage.getItem('aether_user');
+        const isPaid = localStorage.getItem('aether_paid') === 'true';
 
         if (!loggedInUser) {
-            // Auto open Login Modal if user is not signed in
-            alert('Please sign in to your custom dashboard account first to vault your API key.');
+            alert('Please sign in to your dashboard account first to vault your API key.');
             openAuthModal();
+            return;
+        }
+
+        if (!isPaid) {
+            alert('Please select and pay for one of the pricing plans below to unlock gateway endpoint creation.');
+            document.querySelector('.pricing-section').scrollIntoView({ behavior: 'smooth' });
             return;
         }
 
@@ -265,11 +328,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Securely vault key locally for simulated user persistence
         localStorage.setItem('aether_key_vaulted', key);
         generateGatewayURL(key, loggedInUser);
-        
-        // Scroll smoothly to outcome box
         outcomeBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
 
@@ -293,7 +353,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loginBtn.addEventListener('click', openAuthModal);
     modalCloseBtn.addEventListener('click', closeAuthModal);
     
-    // Close modal on background click
     authModal.addEventListener('click', (e) => {
         if (e.target === authModal) closeAuthModal();
     });
@@ -312,9 +371,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     logoutBtn.addEventListener('click', () => {
         localStorage.removeItem('aether_user');
+        localStorage.removeItem('aether_paid');
         localStorage.removeItem('aether_key_vaulted');
         
-        // Reset telemetry dashboard badge to simulated
         if (liveTelemetryBadge) {
             liveTelemetryBadge.textContent = '📊 Live Dashboard';
             liveTelemetryBadge.style.backgroundColor = '';
@@ -326,7 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSimulator();
     });
 
-    // Toggle auth form modes (login/signup)
     authToggleType.addEventListener('click', () => {
         const title = authModal.querySelector('.modal-title-wrapper h3');
         const desc = authModal.querySelector('.modal-title-wrapper p');
@@ -344,8 +402,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- Plan Selection & Mock Purchase Event Handlers ---
+    const pricingButtons = document.querySelectorAll('.plan-action-btn');
+    pricingButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const loggedInUser = localStorage.getItem('aether_user');
+            if (!loggedInUser) {
+                alert('Please sign in to your dashboard account first to checkout and purchase a plan.');
+                openAuthModal();
+                return;
+            }
+
+            // Simulate B2B checkout payment success
+            localStorage.setItem('aether_paid', 'true');
+            alert('🎉 Subscription payment successful! Your AetherPing Caching Safeguards have been unlocked. Go ahead and toggle Card 2’s switch ON to start caching and secure your AI cost savings!');
+            
+            checkLoginState();
+            updateSimulator();
+            
+            // Scroll back to main dashboard smoothly
+            document.querySelector('.dashboard-grid').scrollIntoView({ behavior: 'smooth' });
+        });
+    });
+
     // --- Inputs Event Listeners ---
-    // Use both 'change' and 'input' to guarantee updates trigger instantly on all browsers
     modelSelector.addEventListener('change', updateSimulator);
     modelSelector.addEventListener('input', updateSimulator);
     sliderSpend.addEventListener('input', updateSimulator);
@@ -354,6 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
         heartbeatToggle.addEventListener('change', updateSimulator);
     }
 
-    // Run Initial Simulation calculations
+    // --- Initial Onboarding State ---
+    checkLoginState();
     updateSimulator();
 });
