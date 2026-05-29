@@ -21,7 +21,7 @@ export default {
       });
     }
 
-    // Route A: Vault Sync API Endpoint
+    // Route A: Vault Sync API Endpoint (Database-connected B2B Edge Vault)
     if (url.pathname === "/api/v1/key/vault" && request.method === "POST") {
       try {
         const { key, email, model, protectionActive } = await request.json();
@@ -36,20 +36,41 @@ export default {
         const uniqueHash = btoa(email).substring(0, 8).toLowerCase();
         const encryptedKey = `aes256_gcm_${btoa(key).substring(0, 16)}...`;
 
-        // Save key configuration in global worker memory
+        let isPaid = true; // High-fidelity visual fallback for offline/development
+
+        // Query Supabase Postgres Database at the Edge if credentials are configured
+        if (env.SUPABASE_URL && env.SUPABASE_ANON_KEY) {
+          try {
+            const dbResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?email=eq.${email}&select=*`, {
+              headers: {
+                "apikey": env.SUPABASE_ANON_KEY,
+                "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}`
+              }
+            });
+            const records = await dbResponse.json();
+            if (records && records.length > 0) {
+              isPaid = !!records[0].paid;
+            }
+          } catch (err) {
+            console.error("[Supabase Edge Error]:", err.message);
+          }
+        }
+
+        // Save key configuration in global isolated worker memory context
         keyVault.set(uniqueHash, {
           email,
           model,
           encryptedKey,
-          protectionActive: !!protectionActive,
+          protectionActive: !!protectionActive && isPaid, // Heartbeats only activate if paid
           lastUpdated: new Date()
         });
 
-        console.log(`[AetherVault 🔒 Edge] API Key securely vaulted for gateway ID: ae_live_${uniqueHash}`);
+        console.log(`[AetherVault 🔒 Edge] API Key securely vaulted for gateway ID: ae_live_${uniqueHash} (Paid: ${isPaid})`);
 
         return new Response(
           JSON.stringify({
             success: true,
+            paid: isPaid,
             gatewayId: `ae_live_${uniqueHash}`,
             gatewayUrl: `${url.origin}/api/v1/chat/completions/ae_live_${uniqueHash}`
           }),
@@ -130,14 +151,45 @@ export default {
       }
     }
 
-    // Route B: Caching Proxy Completions Endpoint (SSE Stream Interceptor)
+    // Route B: Caching Proxy Completions Endpoint (SSE Stream Interceptor & Cold Start Database Restore)
     if (url.pathname.startsWith("/api/v1/chat/completions/ae_live_") && request.method === "POST") {
       const gatewayId = url.pathname.split("/").pop();
       const hash = gatewayId.replace("ae_live_", "");
-      const userConfig = keyVault.get(hash);
+      let userConfig = keyVault.get(hash);
+
+      // If missing in global memory (e.g. on edge node cold starts), automatically restore from Supabase Database
+      if (!userConfig && env.SUPABASE_URL && env.SUPABASE_ANON_KEY) {
+        try {
+          const dbResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?gateway_id=eq.${gatewayId}&select=*`, {
+            headers: {
+              "apikey": env.SUPABASE_ANON_KEY,
+              "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}`
+            }
+          });
+          const records = await dbResponse.json();
+          if (records && records.length > 0) {
+            const profile = records[0];
+            
+            // Only restore if user has active paid subscription
+            if (profile.paid) {
+              keyVault.set(hash, {
+                email: profile.email,
+                model: profile.active_model,
+                encryptedKey: profile.encrypted_api_key || "aes256_gcm_placeholder...",
+                protectionActive: profile.protection_active,
+                lastUpdated: new Date()
+              });
+              userConfig = keyVault.get(hash);
+              console.log(`[AetherProxy 🚀 Cold Start] Successfully restored vault state from Supabase for gateway: ${gatewayId}`);
+            }
+          }
+        } catch (err) {
+          console.error("[Supabase Cold Start Restore Error]:", err.message);
+        }
+      }
 
       if (!userConfig) {
-        return new Response(JSON.stringify({ error: "Unauthorized Gateway ID or vault expired." }), {
+        return new Response(JSON.stringify({ error: "Unauthorized Gateway ID or vault expired. Please verify your active subscription." }), {
           status: 401,
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
         });

@@ -4,6 +4,12 @@
 
 document.addEventListener('DOMContentLoaded', () => {
 
+    // --- Supabase Enterprise Database Configuration ---
+    const SUPABASE_URL = "https://cqbvcsbkdddamrivejca.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_8qB6CruIJAn3Kr2BwdJBHg_wCdX6Hwz";
+    const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+    console.log("Supabase Client active:", !!supabase);
+
     // --- State and Constants ---
     const MODELS = {
         'claude-sonnet': {
@@ -148,9 +154,85 @@ document.addEventListener('DOMContentLoaded', () => {
     const liveTelemetryBadge = document.querySelector('.live-telemetry-badge');
 
     // --- Authentication & Workspace state swapping ---
-    function checkLoginState() {
-        const loggedInUser = localStorage.getItem('aether_user');
-        const isPaid = localStorage.getItem('aether_paid') === 'true';
+    async function checkLoginState() {
+        if (!supabase) {
+            runLocalMockLoginState();
+            return;
+        }
+
+        try {
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            
+            if (sessionError) throw sessionError;
+
+            if (session) {
+                const loggedInUser = session.user.email;
+                localStorage.setItem('aether_user', loggedInUser);
+                loginBtn.style.display = 'none';
+                userProfile.style.display = 'flex';
+                userEmailText.textContent = loggedInUser;
+                document.querySelector('.user-avatar').textContent = loggedInUser.charAt(0).toUpperCase();
+
+                // Fetch real-time configurations from Supabase Postgres
+                const { data, error } = await supabase
+                    .from('gateways')
+                    .select('*')
+                    .eq('id', session.user.id)
+                    .maybeSingle();
+
+                if (error) throw error;
+
+                if (data) {
+                    const isPaid = data.paid;
+                    localStorage.setItem('aether_paid', isPaid ? 'true' : 'false');
+                    
+                    if (data.encrypted_api_key) {
+                        localStorage.setItem('aether_key_vaulted', 'vaulted_key');
+                    } else {
+                        localStorage.removeItem('aether_key_vaulted');
+                    }
+
+                    if (isPaid) {
+                        landingPageContainer.style.display = 'none';
+                        clientDashboardContainer.style.display = 'block';
+                        syncClientDashboard(data);
+                    } else {
+                        landingPageContainer.style.display = 'block';
+                        clientDashboardContainer.style.display = 'none';
+                        headerStatusContainer.style.display = 'block';
+                        headerStatusContainer.innerHTML = '<span class="unpaid-badge">● Unpaid Account</span>';
+                        
+                        if (data.encrypted_api_key) {
+                            apiKeyInput.value = '••••••••••••••••••••';
+                        }
+                    }
+                } else {
+                    // Create gateway profile if trigger didn't run
+                    await supabase.from('gateways').insert({
+                        id: session.user.id,
+                        email: loggedInUser,
+                        paid: false,
+                        protection_active: true
+                    });
+                }
+            } else {
+                runLocalMockLoginState(true); // Forces clearing logged out states
+            }
+        } catch (err) {
+            console.error('Supabase Session Fetch Error:', err.message);
+            runLocalMockLoginState();
+        }
+    }
+
+    function runLocalMockLoginState(forceLogout = false) {
+        const loggedInUser = forceLogout ? null : localStorage.getItem('aether_user');
+        const isPaid = forceLogout ? false : localStorage.getItem('aether_paid') === 'true';
+
+        if (forceLogout) {
+            localStorage.removeItem('aether_user');
+            localStorage.removeItem('aether_paid');
+            localStorage.removeItem('aether_key_vaulted');
+        }
 
         if (loggedInUser) {
             loginBtn.style.display = 'none';
@@ -159,12 +241,10 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelector('.user-avatar').textContent = loggedInUser.charAt(0).toUpperCase();
             
             if (isPaid) {
-                // Paid Lifecycle: Route to Separated Standalone Console Dashboard
                 landingPageContainer.style.display = 'none';
                 clientDashboardContainer.style.display = 'block';
                 syncClientDashboard();
             } else {
-                // Logged in but unpaid: Keep on Landing Page to prompt payment
                 landingPageContainer.style.display = 'block';
                 clientDashboardContainer.style.display = 'none';
                 headerStatusContainer.style.display = 'block';
@@ -176,7 +256,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } else {
-            // Logged out Visitor: Show Landing Page
             loginBtn.style.display = 'block';
             userProfile.style.display = 'none';
             headerStatusContainer.style.display = 'none';
@@ -233,7 +312,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Standalone Console Synchronization ---
-    function syncClientDashboard() {
+    function syncClientDashboard(profile) {
+        if (profile) {
+            if (profile.active_model) {
+                dashModelSelector.value = profile.active_model;
+            }
+            if (profile.protection_active !== undefined) {
+                dashHeartbeatToggle.checked = profile.protection_active;
+            }
+            if (profile.encrypted_api_key) {
+                dashApiKeyInput.value = '••••••••••••••••••••';
+            }
+        }
+
         const modelKey = dashModelSelector.value;
         const model = MODELS[modelKey];
         const loggedInUser = localStorage.getItem('aether_user');
@@ -519,6 +610,23 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.success) {
                 dashGatewayUrlEl.textContent = data.gatewayUrl;
                 console.log('Synchronized securely with Edge Vault.');
+                
+                // Write preferences back to permanent secure Supabase Database row
+                if (supabase) {
+                    supabase.auth.getSession().then(({ data: { session } }) => {
+                        if (session) {
+                            supabase.from('gateways').update({
+                                active_model: activeModel,
+                                protection_active: protectionActive,
+                                encrypted_api_key: key.substring(0, 16) + '...', // Masked indicator for storage
+                                gateway_id: data.gatewayId,
+                                updated_at: new Date()
+                            }).eq('id', session.user.id).then(() => {
+                                console.log('SupaBase DB Sync successful.');
+                            });
+                        }
+                    });
+                }
             }
         })
         .catch(err => console.log('Server connection offline. Running visual fallback.'));
@@ -550,19 +658,63 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // About modal overlay logic removed as About Us is now statically embedded
 
-    googleLoginBtn.addEventListener('click', () => {
-        doMockLogin('google.partner@company.com');
+    googleLoginBtn.addEventListener('click', async () => {
+        if (!supabase) {
+            doMockLogin('google.partner@company.com');
+            return;
+        }
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: window.location.origin
+            }
+        });
+        if (error) alert('Google Sign-In Error: ' + error.message);
     });
 
-    authForm.addEventListener('submit', (e) => {
+    authForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const email = authEmail.value.trim();
-        if (email) {
+        const password = authPassword.value;
+
+        if (!email || !password) return;
+
+        const isSignup = authSubmitBtn.textContent === 'Register Account';
+
+        if (!supabase) {
             doMockLogin(email);
+            return;
         }
+
+        authSubmitBtn.textContent = isSignup ? 'Registering...' : 'Signing in...';
+        authSubmitBtn.disabled = true;
+
+        if (isSignup) {
+            const { data, error } = await supabase.auth.signUp({ email, password });
+            if (error) {
+                alert('Registration Error: ' + error.message);
+            } else {
+                alert('🎉 Enterprise account created successfully! Please check your email to confirm registration.');
+                closeAuthModal();
+            }
+        } else {
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) {
+                alert('Login Error: ' + error.message);
+            } else {
+                closeAuthModal();
+                checkLoginState();
+            }
+        }
+
+        authSubmitBtn.textContent = isSignup ? 'Register Account' : 'Secure Login';
+        authSubmitBtn.disabled = false;
     });
 
-    logoutBtn.addEventListener('click', () => {
+    logoutBtn.addEventListener('click', async () => {
+        if (supabase) {
+            await supabase.auth.signOut();
+        }
         localStorage.removeItem('aether_user');
         localStorage.removeItem('aether_paid');
         localStorage.removeItem('aether_key_vaulted');
