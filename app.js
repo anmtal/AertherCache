@@ -215,6 +215,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         protection_active: true
                     });
                 }
+
+                // Check if there is a pending plan to checkout after login completes
+                const pendingPlan = localStorage.getItem('pending_checkout_plan');
+                if (pendingPlan) {
+                    localStorage.removeItem('pending_checkout_plan');
+                    const btn = document.querySelector(`.plan-action-btn[data-plan="${pendingPlan}"]`);
+                    triggerStripeCheckout(pendingPlan, loggedInUser, btn);
+                }
             } else {
                 runLocalMockLoginState(true); // Forces clearing logged out states
             }
@@ -254,6 +262,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (savedKey) {
                     apiKeyInput.value = savedKey;
                 }
+            }
+
+            // Check if there is a pending plan to checkout in mock state
+            const pendingPlan = localStorage.getItem('pending_checkout_plan');
+            if (pendingPlan) {
+                localStorage.removeItem('pending_checkout_plan');
+                const btn = document.querySelector(`.plan-action-btn[data-plan="${pendingPlan}"]`);
+                triggerStripeCheckout(pendingPlan, loggedInUser, btn);
             }
         } else {
             loginBtn.style.display = 'block';
@@ -749,60 +765,71 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Plan Selection & Mock Purchase Event Handlers ---
     // --- Plan Selection & Stripe Checkout Integration ---
+    function triggerStripeCheckout(plan, email, btn) {
+        if (btn) {
+            btn.textContent = 'Connecting to Stripe...';
+            btn.disabled = true;
+        }
+
+        const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const backendBase = isLocalHost 
+            ? 'http://localhost:3000'
+            : 'https://aethercache-gateway.arthercache.workers.dev';
+
+        fetch(`${backendBase}/api/v1/checkout/session`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                plan: plan,
+                email: email,
+                urlOrigin: window.location.origin
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.url) {
+                window.location.href = data.url;
+            } else if (data.success) {
+                localStorage.setItem('aether_paid', 'true');
+                alert('🎉 Subscription payment successful! Swapping view to your dedicated standalone gateway dashboard.');
+                checkLoginState();
+            } else {
+                alert('Error creating checkout session: ' + (data.error || 'Unknown error'));
+                if (btn) {
+                    btn.textContent = plan === 'growth' ? 'Upgrade to Growth' : 'Get Started';
+                    btn.disabled = false;
+                }
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            // Resilient local visual fallback in case backend is offline
+            localStorage.setItem('aether_paid', 'true');
+            alert('🎉 Simulation Mode: Subscription payment successful! Redirecting to dashboard.');
+            checkLoginState();
+        });
+    }
+
     const pricingButtons = document.querySelectorAll('.plan-action-btn');
     pricingButtons.forEach(btn => {
         btn.addEventListener('click', () => {
-            const loggedInUser = localStorage.getItem('aether_user');
-            if (!loggedInUser) {
-                alert('Please sign in to your dashboard account first to checkout and purchase a plan.');
-                openAuthModal();
-                return;
-            }
-
             const plan = btn.getAttribute('data-plan') || 'startup';
             if (plan === 'enterprise') {
                 window.location.href = 'mailto:sales@aethercache.com?subject=Enterprise Custom Plan Inquiry';
                 return;
             }
 
-            btn.textContent = 'Connecting to Stripe...';
-            btn.disabled = true;
+            const loggedInUser = localStorage.getItem('aether_user');
+            if (!loggedInUser) {
+                // Not logged in: save pending plan and trigger auth flow
+                localStorage.setItem('pending_checkout_plan', plan);
+                alert('To purchase the ' + plan.toUpperCase() + ' plan, please sign in or register an enterprise account. You will be redirected to the Stripe Checkout page immediately after.');
+                openAuthModal();
+                return;
+            }
 
-            const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            const backendBase = isLocalHost 
-                ? 'http://localhost:3000'
-                : 'https://aethercache-gateway.arthercache.workers.dev';
-
-            fetch(`${backendBase}/api/v1/checkout/session`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    plan: plan,
-                    email: loggedInUser,
-                    urlOrigin: window.location.origin
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.url) {
-                    window.location.href = data.url;
-                } else if (data.success) {
-                    localStorage.setItem('aether_paid', 'true');
-                    alert('🎉 Subscription payment successful! Swapping view to your dedicated standalone gateway dashboard.');
-                    checkLoginState();
-                } else {
-                    alert('Error creating checkout session: ' + (data.error || 'Unknown error'));
-                    btn.textContent = plan === 'growth' ? 'Upgrade to Growth' : 'Get Started';
-                    btn.disabled = false;
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                // Resilient local visual fallback in case backend is offline
-                localStorage.setItem('aether_paid', 'true');
-                alert('🎉 Simulation Mode: Subscription payment successful! Redirecting to dashboard.');
-                checkLoginState();
-            });
+            // Already logged in: directly trigger Stripe checkout
+            triggerStripeCheckout(plan, loggedInUser, btn);
         });
     });
 

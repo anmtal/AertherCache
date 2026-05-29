@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stripe Checkout — AetherCache Subscription</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --color-bg: #09090b;
+            --color-card: #18181b;
+            --color-primary: #635bff; /* Stripe Purple */
+            --color-primary-hover: #7a73ff;
+            --color-text-main: #f4f4f5;
+            --color-text-muted: #a1a1aa;
+            --color-border: rgba(255, 255, 255, 0.08);
+            --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-heading: 'Outfit', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background-color: var(--color-bg);
+            color: var(--color-text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: stretch;
+        }
+
+        /* Split Screen Layout */
+        .checkout-container {
+            display: flex;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        /* Left Side Panel (Product Info) */
+        .info-panel {
+            flex: 1.1;
+            background: radial-gradient(circle at 10% 20%, rgba(99, 91, 255, 0.12) 0%, rgba(9, 9, 11, 1) 90%);
+            border-right: 1px solid var(--color-border);
+            padding: 80px 10% 40px 10%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Right Side Panel (Payment Form) */
+        .form-panel {
+            flex: 0.9;
+            background-color: #0b0b0d;
+            padding: 80px 10% 40px 10%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow-y: auto;
+        }
+
+        /* Brand & Product Header */
+        .brand-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 60px;
+            color: var(--color-text-muted);
+            font-family: var(--font-heading);
+            font-weight: 600;
+            font-size: 16px;
+            letter-spacing: 0.05em;
+        }
+
+        .brand-logo-icon {
+            color: #635bff;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--color-text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            margin-bottom: 24px;
+            transition: color 0.2s ease;
+        }
+
+        .back-link:hover {
+            color: var(--color-text-main);
+        }
+
+        .plan-title {
+            font-family: var(--font-heading);
+            font-weight: 700;
+            font-size: 16px;
+            color: var(--color-text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 8px;
+        }
+
+        .price-display {
+            font-family: var(--font-heading);
+            font-weight: 800;
+            font-size: 56px;
+            color: var(--color-text-main);
+            display: flex;
+            align-items: baseline;
+            margin-bottom: 24px;
+            text-shadow: 0 4px 20px rgba(99, 91, 255, 0.15);
+        }
+
+        .price-display span {
+            font-size: 18px;
+            font-weight: 500;
+            color: var(--color-text-muted);
+            margin-left: 6px;
+        }
+
+        /* Order Summary Table */
+        .order-summary {
+            width: 100%;
+            margin-top: 40px;
+            border-top: 1px solid var(--color-border);
+            padding-top: 24px;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            font-size: 14px;
+            color: var(--color-text-muted);
+        }
+
+        .summary-row.total {
+            border-top: 1px solid var(--color-border);
+            padding-top: 16px;
+            margin-top: 16px;
+            font-weight: 700;
+            font-size: 16px;
+            color: var(--color-text-main);
+        }
+
+        /* Form Styling */
+        .form-title {
+            font-family: var(--font-heading);
+            font-weight: 700;
+            font-size: 20px;
+            margin-bottom: 24px;
+            color: var(--color-text-main);
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--color-text-muted);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stripe-input {
+            width: 100%;
+            background-color: var(--color-card);
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            padding: 12px 16px;
+            color: var(--color-text-main);
+            font-family: var(--font-body);
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .stripe-input:focus {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.15);
+        }
+
+        /* Card Input Grid */
+        .card-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 12px;
+            background-color: var(--color-card);
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            padding: 4px;
+            margin-bottom: 20px;
+        }
+
+        .card-grid .stripe-input {
+            border: none;
+            background: transparent;
+        }
+
+        .card-grid .stripe-input:focus {
+            box-shadow: none;
+        }
+
+        .card-grid-inner {
+            display: flex;
+            border-left: 1px solid var(--color-border);
+        }
+
+        .pay-button {
+            width: 100%;
+            background-color: var(--color-primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 16px;
+            font-family: var(--font-heading);
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 30px;
+        }
+
+        .pay-button:hover {
+            background-color: var(--color-primary-hover);
+        }
+
+        .pay-button:active {
+            transform: scale(0.99);
+        }
+
+        /* Spinner for Loading State */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Footer Branding */
+        .stripe-footer {
+            margin-top: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--color-text-muted);
+            border-top: 1px solid var(--color-border);
+            padding-top: 20px;
+        }
+
+        .stripe-badge {
+            background-color: rgba(99, 91, 255, 0.1);
+            color: var(--color-primary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+            font-size: 10px;
+            letter-spacing: 0.05em;
+        }
+
+        /* Responsive styling */
+        @media (max-width: 850px) {
+            .checkout-container {
+                flex-direction: column;
+            }
+            .info-panel, .form-panel {
+                padding: 40px 6%;
+            }
+            .info-panel {
+                border-right: none;
+                border-bottom: 1px solid var(--color-border);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="checkout-container">
+        
+        <!-- Left Side: Order & Product Telemetry -->
+        <div class="info-panel">
+            <div>
+                <a href="/" class="back-link" id="back-link">
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                    Back to AetherCache
+                </a>
+
+                <div class="brand-header">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" class="brand-logo-icon">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                    </svg>
+                    <span>AETHERCACHE</span>
+                </div>
+
+                <div class="plan-title" id="plan-name-display">Startup Plan</div>
+                <div class="price-display" id="price-display">$99.00<span>/ mo</span></div>
+
+                <div class="order-summary">
+                    <div class="summary-row">
+                        <span id="plan-description-display">AetherCache Startup subscription</span>
+                        <span id="subtotal-display">$87.61</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Ontario HST (13.0% included)</span>
+                        <span id="tax-display">$11.39</span>
+                    </div>
+                    <div class="summary-row total">
+                        <span>Total Due Now</span>
+                        <span id="total-display">$99.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="summary-row" style="margin-top: 40px; font-size: 11px;">
+                <span>Powered by Stripe Sandbox Integration Simulator</span>
+            </div>
+        </div>
+
+        <!-- Right Side: Beautiful Mock Credit Card Form -->
+        <div class="form-panel">
+            <div>
+                <h3 class="form-title">Pay with Card</h3>
+
+                <form id="checkout-form" onsubmit="handlePaymentSubmit(event)">
+                    <div class="input-group">
+                        <label class="input-label" for="card-email">Email Address</label>
+                        <input type="email" id="card-email" class="stripe-input" required readonly>
+                    </div>
+
+                    <div class="input-group">
+                        <label class="input-label">Card Information</label>
+                        <div class="card-grid">
+                            <input type="text" id="card-number" class="stripe-input" placeholder="4242 4242 4242 4242" required maxlength="19">
+                            <div class="card-grid-inner">
+                                <input type="text" id="card-expiry" class="stripe-input" placeholder="MM / YY" required maxlength="7" style="padding-left: 10px; padding-right: 4px;">
+                                <input type="text" id="card-cvc" class="stripe-input" placeholder="CVC" required maxlength="4" style="padding-left: 4px; padding-right: 10px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label class="input-label" for="card-name">Cardholder Name</label>
+                        <input type="text" id="card-name" class="stripe-input" placeholder="Jane Doe" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label class="input-label" for="billing-country">Billing Address</label>
+                        <select id="billing-country" class="stripe-input" style="background-color: var(--color-card); border: 1px solid var(--color-border); width: 100%;">
+                            <option value="CA" selected>Canada (Ontario)</option>
+                            <option value="US">United States</option>
+                            <option value="GB">United Kingdom</option>
+                            <option value="DE">Germany</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="pay-button" id="pay-btn">
+                        <span class="spinner" id="btn-spinner"></span>
+                        <span id="btn-text">Subscribe Now</span>
+                    </button>
+                </form>
+            </div>
+
+            <div class="stripe-footer">
+                <span class="stripe-badge">STRIPE</span>
+                <span>Guaranteed Zero-Trust Secure Checkout Connection</span>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Parse parameters from query URL on load
+        const urlParams = new URLSearchParams(window.location.search);
+        const plan = urlParams.get('plan') || 'startup';
+        const email = urlParams.get('email') || 'partner@company.com';
+        
+        // Dynamic calculations for Tax-Inclusive Ontario HST (13.0%)
+        const startupTotal = 99.00;
+        const growthTotal = 299.00;
+        
+        const total = plan === 'growth' ? growthTotal : startupTotal;
+        const taxRate = 0.13;
+        
+        // Inclusive Tax calculations:
+        // Subtotal + Subtotal * 0.13 = Total => Subtotal * 1.13 = Total => Subtotal = Total / 1.13
+        const subtotal = total / (1 + taxRate);
+        const tax = total - subtotal;
+
+        document.getElementById('card-email').value = email;
+        document.getElementById('back-link').href = window.location.origin;
+
+        if (plan === 'growth') {
+            document.getElementById('plan-name-display').textContent = 'Growth Plan';
+            document.getElementById('plan-description-display').textContent = 'AetherCache Growth subscription';
+            document.getElementById('price-display').innerHTML = '$299.00<span>/ mo</span>';
+            document.getElementById('subtotal-display').textContent = `$${subtotal.toFixed(2)}`;
+            document.getElementById('tax-display').textContent = `$${tax.toFixed(2)}`;
+            document.getElementById('total-display').textContent = `$299.00`;
+            document.getElementById('btn-text').textContent = 'Subscribe Now ($299.00)';
+        } else {
+            document.getElementById('plan-name-display').textContent = 'Startup Plan';
+            document.getElementById('plan-description-display').textContent = 'AetherCache Startup subscription';
+            document.getElementById('price-display').innerHTML = '$99.00<span>/ mo</span>';
+            document.getElementById('subtotal-display').textContent = `$${subtotal.toFixed(2)}`;
+            document.getElementById('tax-display').textContent = `$${tax.toFixed(2)}`;
+            document.getElementById('total-display').textContent = `$99.00`;
+            document.getElementById('btn-text').textContent = 'Subscribe Now ($99.00)';
+        }
+
+        // Auto format card number spacing
+        document.getElementById('card-number').addEventListener('input', function (e) {
+            let value = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+            let formatted = '';
+            for (let i = 0; i < value.length; i++) {
+                if (i > 0 && i % 4 === 0) {
+                    formatted += ' ';
+                }
+                formatted += value[i];
+            }
+            e.target.value = formatted;
+        });
+
+        // Auto format expiry MM / YY
+        document.getElementById('card-expiry').addEventListener('input', function (e) {
+            let value = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+            if (value.length > 2) {
+                e.target.value = value.substring(0, 2) + ' / ' + value.substring(2, 4);
+            } else {
+                e.target.value = value;
+            }
+        });
+
+        // Handle country change for tax recalculation (Bonus premium feature!)
+        document.getElementById('billing-country').addEventListener('change', function(e) {
+            const country = e.target.value;
+            let displaySubtotal, displayTax, displayTotal;
+            
+            if (country === 'CA') {
+                // Canada (Ontario HST 13.0% inclusive)
+                displayTotal = total;
+                displaySubtotal = total / 1.13;
+                displayTax = total - displaySubtotal;
+                document.querySelector('#tax-display').previousElementSibling.textContent = 'Ontario HST (13.0% included)';
+            } else {
+                // International (0% tax)
+                displayTotal = total;
+                displaySubtotal = total;
+                displayTax = 0.00;
+                document.querySelector('#tax-display').previousElementSibling.textContent = 'International Sales Tax (0%)';
+            }
+            
+            document.getElementById('subtotal-display').textContent = `$${displaySubtotal.toFixed(2)}`;
+            document.getElementById('tax-display').textContent = `$${displayTax.toFixed(2)}`;
+            document.getElementById('total-display').textContent = `$${displayTotal.toFixed(2)}`;
+        });
+
+        // Payment submission simulation
+        function handlePaymentSubmit(event) {
+            event.preventDefault();
+            
+            const btn = document.getElementById('pay-btn');
+            const spinner = document.getElementById('btn-spinner');
+            const btnText = document.getElementById('btn-text');
+
+            btn.disabled = true;
+            spinner.style.display = 'block';
+            btnText.textContent = 'Processing Payment...';
+
+            // Simulate credit card authorization gateway speed
+            setTimeout(() => {
+                // Redirect back to our platform with success parameters
+                window.location.href = `${window.location.origin}/?success=true`;
+            }, 1800);
+        }
+    </script>
+</body>
+</html>

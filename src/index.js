@@ -151,6 +151,67 @@ export default {
       }
     }
 
+    // Route D: Stripe Webhook Listener (Secure Edge Interceptor)
+    if (url.pathname === "/api/v1/stripe/webhook" && request.method === "POST") {
+      try {
+        const bodyText = await request.text();
+        let event;
+
+        try {
+          event = JSON.parse(bodyText);
+        } catch (jsonErr) {
+          return new Response(JSON.stringify({ error: "Invalid JSON payload." }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+          });
+        }
+
+        // Handle successful checkout session completions
+        if (event.type === "checkout.session.completed") {
+          const session = event.data.object;
+          const email = session.customer_email || (session.customer_details && session.customer_details.email);
+
+          if (email && env.SUPABASE_URL && env.SUPABASE_ANON_KEY && env.SUPABASE_SERVICE_ROLE_KEY) {
+            console.log(`[Stripe Webhook] Verified checkout.session.completed for ${email}. Updating Supabase...`);
+            
+            // PATCH update to gateways table to set paid: true
+            const dbResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?email=eq.${email}`, {
+              method: "PATCH",
+              headers: {
+                "apikey": env.SUPABASE_ANON_KEY,
+                "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal"
+              },
+              body: JSON.stringify({
+                paid: true,
+                updated_at: new Date()
+              })
+            });
+
+            if (dbResponse.ok) {
+              console.log(`[Stripe Webhook] Supabase updated successfully: set paid=true for ${email}`);
+            } else {
+              const errText = await dbResponse.text();
+              console.error(`[Stripe Webhook] Supabase update failed:`, errText);
+            }
+          } else {
+            console.error(`[Stripe Webhook] Missing customer email or database connection credentials.`);
+          }
+        }
+
+        return new Response(JSON.stringify({ received: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+        });
+      }
+    }
+
     // Route B: Caching Proxy Completions Endpoint (SSE Stream Interceptor & Cold Start Database Restore)
     if (url.pathname.startsWith("/api/v1/chat/completions/ae_live_") && request.method === "POST") {
       const gatewayId = url.pathname.split("/").pop();

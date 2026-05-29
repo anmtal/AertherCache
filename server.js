@@ -2,6 +2,7 @@
    AetherCache B2B Backend — High-Fidelity Local Edge Proxy & AetherPing Gateway
    ========================================================================== */
 
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -194,8 +195,64 @@ app.post('/api/v1/checkout/session', async (req, res) => {
         }
     }
 
-    // High-fidelity zero-config local simulation fallback
-    res.json({ success: true });
+    // High-fidelity zero-config local simulation fallback redirecting to stripe-checkout.html
+    res.json({ url: `/stripe-checkout.html?plan=${plan}&email=${email}` });
+});
+
+// 5. Stripe Webhook Listener Endpoint (Local Development & Database Sync)
+app.post('/api/v1/stripe/webhook', async (req, res) => {
+    const event = req.body;
+
+    logEvent('stripe', `Stripe Webhook received event of type: ${event.type}`);
+
+    if (event.type === 'checkout.session.completed') {
+        const session = event.data.object;
+        const email = session.customer_email || (session.customer_details && session.customer_details.email);
+
+        if (email) {
+            logEvent('stripe', `Verified checkout.session.completed for ${email}`, 'success');
+
+            // 1. Update in-memory configuration for active pings
+            keyVault.forEach((config, hash) => {
+                if (config.email === email) {
+                    config.paid = true;
+                    logEvent('stripe', `In-memory KeyVault updated: set paid=true for ${email}`, 'success');
+                }
+            });
+
+            // 2. Proactively update secure Supabase Database row if credentials are configured
+            if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+                try {
+                    logEvent('stripe', `Syncing paid status directly with Supabase Database...`, 'info');
+                    
+                    const dbResponse = await fetch(`${process.env.SUPABASE_URL}/rest/v1/gateways?email=eq.${email}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'apikey': process.env.SUPABASE_ANON_KEY,
+                            'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+                            'Content-Type': 'application/json',
+                            'Prefer': 'return=minimal'
+                        },
+                        body: JSON.stringify({
+                            paid: true,
+                            updated_at: new Date()
+                        })
+                    });
+
+                    if (dbResponse.ok) {
+                        logEvent('stripe', `Supabase DB successfully updated: set paid=true for ${email}`, 'success');
+                    } else {
+                        const errText = await dbResponse.text();
+                        logEvent('stripe', `Supabase DB update failed: ${errText}`, 'error');
+                    }
+                } catch (dbErr) {
+                    logEvent('stripe', `Supabase DB connection error: ${dbErr.message}`, 'error');
+                }
+            }
+        }
+    }
+
+    res.json({ received: true });
 });
 
 // Serve landing page at base route
