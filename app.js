@@ -202,7 +202,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function generateGatewayURL(key, email, isConsole = false) {
         const hashBase = email || 'guest';
         const uniqueHash = btoa(hashBase).substring(0, 8).toLowerCase();
-        const gatewayURL = `https://api.aethercache.com/v1/ae_live_${uniqueHash}`;
+        
+        // Dynamic localhost detection to connect frontend with server.js gateway
+        const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const gatewayURL = isLocalHost 
+            ? `http://localhost:3000/api/v1/chat/completions/ae_live_${uniqueHash}`
+            : `https://api.aethercache.com/v1/ae_live_${uniqueHash}`;
         
         if (isConsole) {
             dashGatewayUrlEl.textContent = gatewayURL;
@@ -308,6 +313,21 @@ document.addEventListener('DOMContentLoaded', () => {
             dashApiKeyInput.disabled = false;
             dashGenerateBtn.disabled = false;
             dashGenerateBtn.textContent = "Vault Settings & Sync Gateway";
+        }
+
+        // Sync with local backend if running locally on state swaps
+        const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        if (isLocalHost && savedKey) {
+            fetch('/api/v1/key/vault', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    key: savedKey,
+                    email: loggedInUser,
+                    model: modelKey,
+                    protectionActive: dashHeartbeatToggle.checked
+                })
+            }).catch(err => {});
         }
     }
 
@@ -418,6 +438,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
         localStorage.setItem('aether_key_vaulted', key);
         generateGatewayURL(key, loggedInUser, true);
+
+        // Sync with local backend if running locally
+        const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        if (isLocalHost) {
+            const activeModel = dashModelSelector.value;
+            const protectionActive = dashHeartbeatToggle.checked;
+
+            fetch('/api/v1/key/vault', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    key: key,
+                    email: loggedInUser,
+                    model: activeModel,
+                    protectionActive: protectionActive
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    dashGatewayUrlEl.textContent = data.gatewayUrl;
+                    console.log('Synchronized securely with local mock Edge Vault.');
+                }
+            })
+            .catch(err => console.log('Local server connection offline. Running visual fallback.'));
+        }
     });
 
     dashCopyUrlBtn.addEventListener('click', () => {
