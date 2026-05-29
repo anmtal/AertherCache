@@ -102,6 +102,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const keyInstructionsTitle = document.getElementById('key-instructions-title');
     const keyInstructionsText = document.getElementById('key-instructions-text');
 
+    const costStandardEl = document.getElementById('cost-standard');
+    const costOptimizedEl = document.getElementById('cost-optimized');
+    const roiSavingsEl = document.getElementById('roi-savings');
+    const kpiSavingsRate = document.getElementById('kpi-savings-rate');
+
     // DEDICATED CONSOLE VIEW Selectors
     const dashModelSelector = document.getElementById('dash-model-selector');
     const dashApiKeyInput = document.getElementById('dash-api-key-input');
@@ -132,10 +137,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const authEmail = document.getElementById('auth-email');
     const authSubmitBtn = document.getElementById('auth-submit-btn');
     const authToggleType = document.getElementById('auth-toggle-type');
-
-    const aboutUsTrigger = document.getElementById('about-us-trigger');
-    const aboutModal = document.getElementById('about-modal');
-    const aboutModalCloseBtn = document.getElementById('about-modal-close-btn');
 
     const liveTelemetryBadge = document.querySelector('.live-telemetry-badge');
 
@@ -326,6 +327,17 @@ document.addEventListener('DOMContentLoaded', () => {
             keyInstructionsText.textContent = model.instructions.text;
         }
 
+        // Calculate and update dynamic savings costs & KPIs
+        const standardSpend = 5000;
+        const savingsRatio = model.savingsRatio;
+        const savingsValue = standardSpend * savingsRatio;
+        const optimizedCost = standardSpend - savingsValue;
+
+        if (costStandardEl) costStandardEl.textContent = `$${Math.round(standardSpend).toLocaleString()}`;
+        if (costOptimizedEl) costOptimizedEl.textContent = `$${Math.round(optimizedCost).toLocaleString()}`;
+        if (roiSavingsEl) roiSavingsEl.textContent = `$${Math.round(savingsValue).toLocaleString()}`;
+        if (kpiSavingsRate) kpiSavingsRate.textContent = `${Math.round(savingsRatio * 100)}%`;
+
         if (!loggedInUser) {
             // State 1: LOGGED OUT Visitor
             headerStatusContainer.style.display = 'none';
@@ -432,23 +444,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target === authModal) closeAuthModal();
     });
 
-    // --- About Us Modal Event Handlers ---
-    if (aboutUsTrigger && aboutModal) {
-        aboutUsTrigger.addEventListener('click', (e) => {
-            e.preventDefault();
-            aboutModal.classList.add('active');
-        });
-    }
-
-    if (aboutModalCloseBtn && aboutModal) {
-        aboutModalCloseBtn.addEventListener('click', () => {
-            aboutModal.classList.remove('active');
-        });
-        
-        aboutModal.addEventListener('click', (e) => {
-            if (e.target === aboutModal) aboutModal.classList.remove('active');
-        });
-    }
+    // About modal overlay logic removed as About Us is now statically embedded
 
     googleLoginBtn.addEventListener('click', () => {
         doMockLogin('google.partner@company.com');

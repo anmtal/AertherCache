@@ -1758,4 +1758,176 @@ input:disabled {
     text-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
 }
 
+/* --- Embedded About Us Card --- */
+.about-us-section {
+    margin-bottom: 28px;
+    background: linear-gradient(135deg, rgba(20, 20, 25, 0.75) 0%, rgba(12, 12, 17, 0.8) 100%) !important;
+}
+
+.about-header {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 18px;
+}
+
+.about-header h3 {
+    font-size: 22px;
+    background: linear-gradient(135deg, #ffffff 50%, #a1a1aa 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.about-lead {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.about-grid-content {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 32px;
+    margin-top: 10px;
+}
+
+.about-text-column {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.about-item h4 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-cyan);
+    font-weight: 750;
+    margin-bottom: 4px;
+}
+
+.about-item p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.about-stats-column {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    justify-content: space-between;
+}
+
+.about-stats-column .about-stat-box {
+    background: rgba(255, 255, 255, 0.015);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 12px;
+    padding: 14px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: var(--transition-smooth);
+}
+
+.about-stats-column .about-stat-box:hover {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    transform: translateY(-2px);
+}
+
+.about-stats-column .stat-num {
+    font-size: 24px;
+    font-weight: 800;
+}
+
+.about-stats-column .stat-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* --- Card 3: Savings & KPI Analytics Layout --- */
+.full-width-card {
+    grid-column: span 2;
+}
+
+.kpi-dashboard-body {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 32px;
+    align-items: stretch;
+}
+
+.kpi-cost-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.kpi-metrics-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    justify-content: space-between;
+}
+
+.kpi-item {
+    background: rgba(255, 255, 255, 0.015);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: var(--transition-smooth);
+}
+
+.kpi-item:hover {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    transform: translateY(-2px);
+}
+
+.kpi-item .kpi-num {
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.kpi-item .kpi-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.kpi-item .kpi-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.purple-border {
+    border-color: rgba(168, 85, 247, 0.25);
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+    .full-width-card {
+        grid-column: span 1;
+    }
+    .kpi-dashboard-body {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+    .about-grid-content {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+}
+
 

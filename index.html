@@ -57,6 +57,41 @@
             </p>
         </section>
 
+        <!-- Embedded About Us Card (Permanently Visible at Top) -->
+        <section class="about-us-section glass-card">
+            <div class="about-header">
+                <span class="console-badge">OUR MISSION</span>
+                <h3>About AetherCache</h3>
+                <p class="about-lead">Engineering the future of cost-efficient, lightning-fast AI infrastructure.</p>
+            </div>
+            <div class="about-grid-content">
+                <div class="about-text-column">
+                    <div class="about-item">
+                        <h4>The Problem</h4>
+                        <p>Large Language Models (LLMs) charge premium rates for processing context inputs. As conversations grow, system instructions and documents are reprocessed continuously, leading to massive, unsustainable API bills.</p>
+                    </div>
+                    <div class="about-item">
+                        <h4>The AetherCache Solution</h4>
+                        <p>We act as an intelligent edge-caching proxy. By refactoring prompts in-memory and dispatching automated keep-warm heartbeats (AetherPing), we keep model caches alive 24/7. Startups save 50% to 90% on LLM queries with zero code changes.</p>
+                    </div>
+                </div>
+                <div class="about-stats-column">
+                    <div class="about-stat-box">
+                        <span class="stat-label">Max Cost Savings</span>
+                        <span class="stat-num text-purple-glow">90%</span>
+                    </div>
+                    <div class="about-stat-box">
+                        <span class="stat-label">Latency Speedup</span>
+                        <span class="stat-num text-cyan-glow">4.5x</span>
+                    </div>
+                    <div class="about-stat-box">
+                        <span class="stat-label">Zero-Code Setup</span>
+                        <span class="stat-num text-emerald-glow">100%</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Main Dashboard Grid -->
         <main class="dashboard-grid">
             
@@ -177,6 +212,59 @@
                             <button class="copy-url-btn" id="copy-url-btn">
                                 <span>Copy URL</span>
                             </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 3: Savings & KPI Analytics (Spans full width) -->
+            <div class="glass-card roi-card full-width-card">
+                <div class="card-header">
+                    <div class="card-icon emerald-bg">
+                        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+                            <line x1="12" y1="1" x2="12" y2="23"></line>
+                            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        </svg>
+                    </div>
+                    <h3>3. Savings & KPI Analytics</h3>
+                    <span class="live-telemetry-badge">📊 Enterprise Telemetry</span>
+                </div>
+                <div class="card-body kpi-dashboard-body">
+                    <!-- Comparative Cost Column -->
+                    <div class="kpi-cost-section">
+                        <div class="roi-box border-red">
+                            <span class="roi-label">Cost Without AetherCache</span>
+                            <span class="roi-num text-red" id="cost-standard">$5,000</span>
+                            <span class="roi-subtext">Standard Provider Pricing</span>
+                        </div>
+                        <div class="roi-box border-emerald">
+                            <span class="roi-label">Cost With AetherCache</span>
+                            <span class="roi-num text-emerald" id="cost-optimized">$1,500</span>
+                            <span class="roi-subtext">Kept 100% Warm at Edge</span>
+                        </div>
+                        <div class="roi-box highlight-box purple-border">
+                            <span class="roi-label text-purple-light">Total Savings Secured</span>
+                            <span class="roi-num text-purple-glow" id="roi-savings">$3,500</span>
+                            <span class="roi-subtext text-purple-light">Monthly Reclaimed Margin</span>
+                        </div>
+                    </div>
+
+                    <!-- Glowing KPIs Column -->
+                    <div class="kpi-metrics-section">
+                        <div class="kpi-item">
+                            <span class="kpi-num text-purple-glow" id="kpi-savings-rate">75%</span>
+                            <span class="kpi-label">Average Caching Savings</span>
+                            <p class="kpi-desc">Direct discount applied automatically by model providers on prefix cache matches.</p>
+                        </div>
+                        <div class="kpi-item">
+                            <span class="kpi-num text-cyan-glow" id="kpi-latency-speed">4.5x</span>
+                            <span class="kpi-label">Latency Speedup</span>
+                            <p class="kpi-desc">Edge prompt caches respond in milliseconds, bypassing raw LLM queue processing.</p>
+                        </div>
+                        <div class="kpi-item">
+                            <span class="kpi-num text-emerald-glow" id="kpi-warm-rate">99.8%</span>
+                            <span class="kpi-label">Cache Warmth Integrity</span>
+                            <p class="kpi-desc">AetherPing heartbeat reliability rate preventing prompt evictions on active instances.</p>
                         </div>
                     </div>
                 </div>
@@ -401,7 +489,6 @@
         <footer class="app-footer">
             <p>&copy; 2026 AetherCache Inc. Designed under Premium Pair-Programming.</p>
             <div class="footer-links">
-                <a href="#" class="about-nav-link" id="about-us-trigger">About Us</a>
                 <span class="status-indicator-footer"><span class="dot bg-emerald"></span> B2B Value-Oriented Interface</span>
             </div>
         </footer>
@@ -442,49 +529,7 @@
         </div>
     </div>
 
-    <!-- Beautiful Glassmorphic About Us Overlay -->
-    <div class="modal-overlay" id="about-modal">
-        <div class="modal-card about-modal-card">
-            <button class="modal-close-btn" id="about-modal-close-btn">&times;</button>
-            <div class="modal-title-wrapper">
-                <span class="console-badge">OUR MISSION</span>
-                <h3>About AetherCache</h3>
-                <p>We are engineering the future of cost-efficient, lightning-fast AI infrastructure.</p>
-            </div>
-            
-            <div class="about-modal-content">
-                <div class="about-section">
-                    <h4>The Problem</h4>
-                    <p>Large Language Models (LLMs) charge premium rates for processing context inputs. As conversations grow, system instructions and documents are reprocessed continuously, leading to massive, unsustainable API bills.</p>
-                </div>
-                
-                <div class="about-section">
-                    <h4>The AetherCache Solution</h4>
-                    <p>We act as an intelligent edge-caching proxy. By refactoring prompts in-memory and dispatching automated keep-warm heartbeats (AetherPing), we keep model caches alive 24/7. Startups save 50% to 90% on LLM queries with zero code changes.</p>
-                </div>
-
-                <div class="about-grid">
-                    <div class="about-stat-box">
-                        <span class="stat-num text-purple-glow">90%</span>
-                        <span class="stat-label">Max Cost Savings</span>
-                    </div>
-                    <div class="about-stat-box">
-                        <span class="stat-num text-cyan-glow">4.5x</span>
-                        <span class="stat-label">Latency Speedup</span>
-                    </div>
-                    <div class="about-stat-box">
-                        <span class="stat-num text-emerald-glow">100%</span>
-                        <span class="stat-label">Zero-Code Setup</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="about-modal-footer">
-                <span>📍 San Francisco, CA</span>
-                <span>🔒 AES-256 BYOK Architecture</span>
-            </div>
-        </div>
-    </div>
+    <!-- Beautiful Glassmorphic Login Overlay is defined above -->
 
     <!-- App Script logic -->
     <script src="app.js"></script>
