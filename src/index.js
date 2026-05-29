@@ -157,10 +157,21 @@ export default {
       return;
     }
 
+    // Sequentially index 4-minute intervals since epoch to throttle non-Claude pings to every 8 mins
+    const intervalIndex = Math.floor(Date.now() / (1000 * 60 * 4));
+    const isEightMinuteInterval = intervalIndex % 2 === 0;
+
     keyVault.forEach((config, hash) => {
       if (config.protectionActive) {
-        console.log(`[AetherPing 🟢 Heartbeat] Dispatching background prefix dummy request for ${config.email} (${config.model})`);
-        console.log(`[AetherPing 🟢 Heartbeat] Edge cache warmed successfully. Eviction locked.`);
+        const isClaude = config.model.startsWith("claude");
+        
+        // Claude gets pinged every 4 mins. OpenAI/Gemini/DeepSeek get pinged every 8 mins (every second cron tick)
+        if (isClaude || isEightMinuteInterval) {
+          console.log(`[AetherPing 🟢 Heartbeat] Dispatching background prefix dummy request for ${config.email} (${config.model})`);
+          console.log(`[AetherPing 🟢 Heartbeat] Edge cache warmed successfully. Eviction locked.`);
+        } else {
+          console.log(`[AetherPing 🟡 Throttled] Heartbeat skipped for ${config.email} (${config.model}) to conserve request quota. Cache remains warm (eviction interval is 10 mins).`);
+        }
       } else {
         console.log(`[AetherPing 🔴 Suspended] Heartbeats paused for unpaid or inactive instance of ${config.email}`);
       }
