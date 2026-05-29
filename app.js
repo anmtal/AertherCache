@@ -705,26 +705,31 @@ document.addEventListener('DOMContentLoaded', () => {
         authSubmitBtn.textContent = isSignup ? 'Registering...' : 'Signing in...';
         authSubmitBtn.disabled = true;
 
-        if (isSignup) {
-            const { data, error } = await supabase.auth.signUp({ email, password });
-            if (error) {
-                alert('Registration Error: ' + error.message);
+        try {
+            if (isSignup) {
+                const { data, error } = await supabase.auth.signUp({ email, password });
+                if (error) {
+                    alert('Registration Error: ' + error.message);
+                } else {
+                    alert('🎉 Enterprise account created successfully! Please check your email to confirm registration.');
+                    closeAuthModal();
+                }
             } else {
-                alert('🎉 Enterprise account created successfully! Please check your email to confirm registration.');
-                closeAuthModal();
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                if (error) {
+                    alert('Login Error: ' + error.message);
+                } else {
+                    closeAuthModal();
+                    checkLoginState();
+                }
             }
-        } else {
-            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-            if (error) {
-                alert('Login Error: ' + error.message);
-            } else {
-                closeAuthModal();
-                checkLoginState();
-            }
+        } catch (err) {
+            console.error('Supabase Auth Error:', err);
+            alert('Supabase Connection Error: ' + err.message);
+        } finally {
+            authSubmitBtn.textContent = isSignup ? 'Register Account' : 'Secure Login';
+            authSubmitBtn.disabled = false;
         }
-
-        authSubmitBtn.textContent = isSignup ? 'Register Account' : 'Secure Login';
-        authSubmitBtn.disabled = false;
     });
 
     logoutBtn.addEventListener('click', async () => {
