@@ -1930,4 +1930,96 @@ input:disabled {
     }
 }
 
+/* --- AetherAudit Custom Header Design --- */
+.audit-header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 18px;
+    margin-bottom: 4px;
+    width: 100%;
+}
+
+.audit-title-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.audit-savings-badge {
+    background: rgba(16, 185, 129, 0.06);
+    border: 1px solid rgba(16, 185, 129, 0.18);
+    padding: 8px 16px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.05);
+    transition: var(--transition-smooth);
+}
+
+.audit-savings-badge:hover {
+    border-color: rgba(16, 185, 129, 0.3);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.1);
+    transform: translateY(-1px);
+}
+
+.audit-savings-text {
+    font-size: 13px;
+    font-weight: 700;
+    color: #a7f3d0;
+    letter-spacing: 0.02em;
+}
+
+.audit-intro-box {
+    margin-top: 16px;
+    background: rgba(168, 85, 247, 0.03);
+    border: 1px solid rgba(168, 85, 247, 0.08);
+    border-radius: 14px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.02);
+    transition: var(--transition-smooth);
+    width: 100%;
+}
+
+.audit-intro-box:hover {
+    border-color: rgba(168, 85, 247, 0.15);
+    background: rgba(168, 85, 247, 0.05);
+}
+
+.audit-intro-icon {
+    color: var(--color-purple);
+    filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.4));
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+}
+
+.audit-intro-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.audit-intro-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #e9d5ff;
+    text-shadow: 0 0 10px rgba(168, 85, 247, 0.2);
+}
+
+.audit-intro-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    font-weight: 400;
+}
+
 
