@@ -107,6 +107,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const roiSavingsEl = document.getElementById('roi-savings');
     const kpiSavingsRate = document.getElementById('kpi-savings-rate');
 
+    const auditPromptInput = document.getElementById('audit-prompt-input');
+    const auditCallsSlider = document.getElementById('audit-calls-slider');
+    const auditCallsValue = document.getElementById('audit-calls-value');
+    const auditTokenDisplay = document.getElementById('audit-token-display');
+    const auditLeakDisplay = document.getElementById('audit-leak-display');
+    const auditSavingsDisplay = document.getElementById('audit-savings-display');
+
     // DEDICATED CONSOLE VIEW Selectors
     const dashModelSelector = document.getElementById('dash-model-selector');
     const dashApiKeyInput = document.getElementById('dash-api-key-input');
@@ -399,6 +406,51 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- AetherAudit Prompt Cost Leak Scanner Engine ---
+    function updateAudit() {
+        const text = auditPromptInput ? auditPromptInput.value : '';
+        const charCount = text.length;
+        // 4 characters per token average
+        const tokenCount = charCount > 0 ? Math.ceil(charCount / 4) : 0;
+
+        // Retrieve active model selected in Card 1 to align pricing parameters
+        const modelKey = modelSelector.value;
+        
+        // Input prompt-caching pricing metrics (per 1,000,000 tokens)
+        const pricingTable = {
+            'claude-sonnet': { std: 3.00, cached: 0.75 },
+            'claude-haiku': { std: 0.80, cached: 0.24 },
+            'claude-opus': { std: 15.00, cached: 3.30 },
+            'gpt-4o': { std: 2.50, cached: 1.50 },
+            'gpt-4o-mini': { std: 0.15, cached: 0.093 },
+            'gemini-pro': { std: 1.25, cached: 0.68 },
+            'gemini-flash': { std: 0.075, cached: 0.0435 },
+            'deepseek-v3': { std: 0.14, cached: 0.077 }
+        };
+
+        const price = pricingTable[modelKey] || pricingTable['claude-sonnet'];
+        const dailyCalls = Number(auditCallsSlider.value);
+
+        // Daily standard vs cached context cost
+        const dailyStandardCost = (tokenCount * dailyCalls * price.std) / 1000000;
+        const dailyCachedCost = (tokenCount * dailyCalls * price.cached) / 1000000;
+
+        // Monthly Cost Leak & Annual Savings
+        const monthlyLeak = (dailyStandardCost - dailyCachedCost) * 30;
+        const annualSavings = monthlyLeak * 12;
+
+        // Update DOM Elements
+        if (auditTokenDisplay) {
+            auditTokenDisplay.innerHTML = `${tokenCount.toLocaleString()} tokens <span style="font-size: 11px; font-weight: 450; color: var(--text-muted); font-family: var(--font-body); text-transform: none; text-shadow: none;">(${charCount.toLocaleString()} chars)</span>`;
+        }
+        if (auditLeakDisplay) {
+            auditLeakDisplay.textContent = `$${monthlyLeak.toFixed(2)}`;
+        }
+        if (auditSavingsDisplay) {
+            auditSavingsDisplay.textContent = `$${annualSavings.toFixed(2)}`;
+        }
+    }
+
     // --- Onboarding Event Handlers ---
     generateBtn.addEventListener('click', () => {
         const key = apiKeyInput.value.trim();
@@ -562,11 +614,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Inputs Event Listeners ---
-    modelSelector.addEventListener('change', updateSimulator);
-    modelSelector.addEventListener('input', updateSimulator);
+    modelSelector.addEventListener('change', () => { updateSimulator(); updateAudit(); });
+    modelSelector.addEventListener('input', () => { updateSimulator(); updateAudit(); });
     
     if (heartbeatToggle) {
         heartbeatToggle.addEventListener('change', updateSimulator);
+    }
+
+    // AetherAudit Event Listeners
+    if (auditPromptInput) {
+        auditPromptInput.addEventListener('input', updateAudit);
+    }
+    if (auditCallsSlider) {
+        auditCallsSlider.addEventListener('input', () => {
+            if (auditCallsValue) {
+                auditCallsValue.textContent = Number(auditCallsSlider.value).toLocaleString();
+            }
+            updateAudit();
+        });
     }
 
     // Dedicated Console Event Listeners
@@ -580,4 +645,5 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Initial Onboarding State ---
     checkLoginState();
     updateSimulator();
+    updateAudit();
 });
