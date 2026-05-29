@@ -203,11 +203,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const hashBase = email || 'guest';
         const uniqueHash = btoa(hashBase).substring(0, 8).toLowerCase();
         
-        // Dynamic localhost detection to connect frontend with server.js gateway
+        // Dynamic localhost detection to connect frontend with live Cloudflare Workers gateway
         const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
         const gatewayURL = isLocalHost 
             ? `http://localhost:3000/api/v1/chat/completions/ae_live_${uniqueHash}`
-            : `https://api.aethercache.com/v1/ae_live_${uniqueHash}`;
+            : `https://aethercache-gateway.arthercache.workers.dev/api/v1/chat/completions/ae_live_${uniqueHash}`;
         
         if (isConsole) {
             dashGatewayUrlEl.textContent = gatewayURL;
@@ -315,10 +315,14 @@ document.addEventListener('DOMContentLoaded', () => {
             dashGenerateBtn.textContent = "Vault Settings & Sync Gateway";
         }
 
-        // Sync with local backend if running locally on state swaps
+        // Sync with serverless backend on state swaps
         const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        if (isLocalHost && savedKey) {
-            fetch('/api/v1/key/vault', {
+        const backendBase = isLocalHost 
+            ? 'http://localhost:3000'
+            : 'https://aethercache-gateway.arthercache.workers.dev';
+
+        if (savedKey) {
+            fetch(`${backendBase}/api/v1/key/vault`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -439,31 +443,33 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('aether_key_vaulted', key);
         generateGatewayURL(key, loggedInUser, true);
 
-        // Sync with local backend if running locally
+        // Sync with serverless backend
         const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        if (isLocalHost) {
-            const activeModel = dashModelSelector.value;
-            const protectionActive = dashHeartbeatToggle.checked;
+        const backendBase = isLocalHost 
+            ? 'http://localhost:3000'
+            : 'https://aethercache-gateway.arthercache.workers.dev';
 
-            fetch('/api/v1/key/vault', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    key: key,
-                    email: loggedInUser,
-                    model: activeModel,
-                    protectionActive: protectionActive
-                })
+        const activeModel = dashModelSelector.value;
+        const protectionActive = dashHeartbeatToggle.checked;
+
+        fetch(`${backendBase}/api/v1/key/vault`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                key: key,
+                email: loggedInUser,
+                model: activeModel,
+                protectionActive: protectionActive
             })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    dashGatewayUrlEl.textContent = data.gatewayUrl;
-                    console.log('Synchronized securely with local mock Edge Vault.');
-                }
-            })
-            .catch(err => console.log('Local server connection offline. Running visual fallback.'));
-        }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                dashGatewayUrlEl.textContent = data.gatewayUrl;
+                console.log('Synchronized securely with Edge Vault.');
+            }
+        })
+        .catch(err => console.log('Server connection offline. Running visual fallback.'));
     });
 
     dashCopyUrlBtn.addEventListener('click', () => {
