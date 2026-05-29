@@ -148,6 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const googleLoginBtn = document.getElementById('google-login-btn');
     const authForm = document.getElementById('auth-form');
     const authEmail = document.getElementById('auth-email');
+    const authPassword = document.getElementById('auth-password');
     const authSubmitBtn = document.getElementById('auth-submit-btn');
     const authToggleType = document.getElementById('auth-toggle-type');
 
