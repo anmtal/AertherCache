@@ -1,0 +1,6 @@
+name = "aethercache-gateway"
+main = "src/index.js"
+compatibility_date = "2026-05-28"
+
+[triggers]
+crons = ["*/4 * * * *"] # automated background heartbeats scheduled every 4 minutes
