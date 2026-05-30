@@ -29,6 +29,11 @@ CREATE TABLE IF NOT EXISTS public.gateways (
   active_model text DEFAULT 'claude-sonnet' NOT NULL,
   encrypted_api_key text,
   protection_active boolean DEFAULT true NOT NULL,
+  total_requests int8 DEFAULT 0 NOT NULL,
+  prompt_tokens int8 DEFAULT 0 NOT NULL,
+  cached_prompt_tokens int8 DEFAULT 0 NOT NULL,
+  cost_without_caching numeric DEFAULT 0.0 NOT NULL,
+  cost_with_caching numeric DEFAULT 0.0 NOT NULL,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -128,3 +133,12 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- ==============================================================================
+-- 10. Live Cost Telemetry Columns Migration (for existing tables)
+-- ==============================================================================
+ALTER TABLE IF EXISTS public.gateways ADD COLUMN IF NOT EXISTS total_requests int8 DEFAULT 0 NOT NULL;
+ALTER TABLE IF EXISTS public.gateways ADD COLUMN IF NOT EXISTS prompt_tokens int8 DEFAULT 0 NOT NULL;
+ALTER TABLE IF EXISTS public.gateways ADD COLUMN IF NOT EXISTS cached_prompt_tokens int8 DEFAULT 0 NOT NULL;
+ALTER TABLE IF EXISTS public.gateways ADD COLUMN IF NOT EXISTS cost_without_caching numeric DEFAULT 0.0 NOT NULL;
+ALTER TABLE IF EXISTS public.gateways ADD COLUMN IF NOT EXISTS cost_with_caching numeric DEFAULT 0.0 NOT NULL;

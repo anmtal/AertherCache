@@ -556,31 +556,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!costStandardEl) return;
 
-        const count = gateways ? gateways.length : 0;
-        
-        // Base API Standard cost of $5,000 per active gateway endpoint context
-        const standardCost = Math.max(5000, count * 5000); 
-        
-        // Calculate average savings ratio based on configured models
-        let totalSavingsRatio = 0;
-        if (count > 0) {
-            gateways.forEach(g => {
-                const modelKey = g.active_model;
-                const model = MODELS[modelKey] || MODELS['claude-sonnet'];
-                totalSavingsRatio += model.savingsRatio;
-            });
-        } else {
-            totalSavingsRatio = 0.75;
-        }
-        
-        const avgSavingsRatio = count > 0 ? (totalSavingsRatio / count) : 0.75;
-        const savingsValue = standardCost * avgSavingsRatio;
-        const optimizedCost = standardCost - savingsValue;
+        let totalCostWithout = 0;
+        let totalCostWith = 0;
+        let hasActualData = false;
 
-        costStandardEl.textContent = `$${Math.round(standardCost).toLocaleString()}`;
-        costOptimizedEl.textContent = `$${Math.round(optimizedCost).toLocaleString()}`;
-        roiSavingsEl.textContent = `$${Math.round(savingsValue).toLocaleString()}`;
-        kpiSavingsRate.textContent = `${Math.round(avgSavingsRatio * 100)}%`;
+        if (gateways && gateways.length > 0) {
+            gateways.forEach(g => {
+                if (g.cost_without_caching !== undefined && g.cost_without_caching !== null) {
+                    const costWithout = Number(g.cost_without_caching);
+                    if (costWithout > 0) {
+                        totalCostWithout += costWithout;
+                        totalCostWith += Number(g.cost_with_caching || 0);
+                        hasActualData = true;
+                    }
+                }
+            });
+        }
+
+        if (hasActualData && totalCostWithout > 0) {
+            const totalSavings = totalCostWithout - totalCostWith;
+            const avgSavingsRate = totalSavings / totalCostWithout;
+
+            costStandardEl.textContent = `$${totalCostWithout.toFixed(2)}`;
+            costOptimizedEl.textContent = `$${totalCostWith.toFixed(2)}`;
+            roiSavingsEl.textContent = `$${totalSavings.toFixed(2)}`;
+            kpiSavingsRate.textContent = `${Math.round(avgSavingsRate * 100)}%`;
+        } else {
+            // Live active tracking starts at 0.00
+            costStandardEl.textContent = "$0.00";
+            costOptimizedEl.textContent = "$0.00";
+            roiSavingsEl.textContent = "$0.00";
+            kpiSavingsRate.textContent = "0%";
+        }
     }
 
     // --- Usage Quota Progress Bar Refresher ---
