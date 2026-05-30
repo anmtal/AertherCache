@@ -1563,8 +1563,10 @@ input:disabled {
 /* --- Centered Premium Console Layout Styles --- */
 .console-wrapper {
     display: flex;
-    justify-content: center;
-    align-items: center;
+    flex-direction: column;
+    gap: 30px;
+    justify-content: flex-start;
+    align-items: stretch;
     width: 100%;
     max-width: 100%;
     margin: 40px auto;

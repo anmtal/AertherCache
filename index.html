@@ -503,8 +503,62 @@
                     </div>
 
                 </div>
-            </div>
-        </div>
+
+                <!-- Live Dashboard Savings & Telemetry Analytics -->
+                <div class="glass-card roi-card full-width-card" style="width: 100%;">
+                    <div class="card-header">
+                        <div class="card-icon emerald-bg">
+                            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none">
+                                <line x1="12" y1="1" x2="12" y2="23"></line>
+                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                            </svg>
+                        </div>
+                        <h3>Live Savings & Telemetry Analytics</h3>
+                        <span class="live-telemetry-badge" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.2); color: #34d399;">📊 Telemetry Active</span>
+                    </div>
+                    <div class="card-body kpi-dashboard-body">
+                        <!-- Comparative Cost Column -->
+                        <div class="kpi-cost-section">
+                            <div class="roi-box border-red">
+                                <span class="roi-label">Cost Without AetherCache</span>
+                                <span class="roi-num text-red" id="dash-cost-standard">$5,000</span>
+                                <span class="roi-subtext">Standard Provider Pricing</span>
+                            </div>
+                            <div class="roi-box border-emerald">
+                                <span class="roi-label">Cost With AetherCache</span>
+                                <span class="roi-num text-emerald" id="dash-cost-optimized">$1,250</span>
+                                <span class="roi-subtext">Kept 100% Warm at Edge</span>
+                            </div>
+                            <div class="roi-box highlight-box purple-border">
+                                <span class="roi-label text-purple-light">Total Savings Secured</span>
+                                <span class="roi-num text-purple-glow" id="dash-roi-savings">$3,750</span>
+                                <span class="roi-subtext text-purple-light">Monthly Reclaimed Margin</span>
+                            </div>
+                        </div>
+
+                        <!-- Glowing KPIs Column -->
+                        <div class="kpi-metrics-section">
+                            <div class="kpi-item">
+                                <span class="kpi-num text-purple-glow" id="dash-kpi-savings-rate">75%</span>
+                                <span class="kpi-label">Average Caching Savings</span>
+                                <p class="kpi-desc">Direct discount applied automatically by model providers on prefix cache matches.</p>
+                            </div>
+                            <div class="kpi-item">
+                                <span class="kpi-num text-cyan-glow" id="dash-kpi-latency-speed">4.5x</span>
+                                <span class="kpi-label">Latency Speedup</span>
+                                <p class="kpi-desc">Edge prompt caches respond in milliseconds, bypassing raw LLM queue processing.</p>
+                            </div>
+                            <div class="kpi-item">
+                                <span class="kpi-num text-emerald-glow" id="dash-kpi-warm-rate">99.8%</span>
+                                <span class="kpi-label">Cache Warmth Integrity</span>
+                                <p class="kpi-desc">AetherPing heartbeat reliability rate preventing prompt evictions on active instances.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div> <!-- End of console-wrapper -->
+        </div> <!-- End of client-dashboard-container -->
 
         <!-- Footer -->
         <footer class="app-footer">

@@ -543,6 +543,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         });
+
+        // Update Live Telemetry Metrics
+        updateDashboardTelemetry(gateways);
+    }
+
+    function updateDashboardTelemetry(gateways) {
+        const costStandardEl = document.getElementById('dash-cost-standard');
+        const costOptimizedEl = document.getElementById('dash-cost-optimized');
+        const roiSavingsEl = document.getElementById('dash-roi-savings');
+        const kpiSavingsRate = document.getElementById('dash-kpi-savings-rate');
+
+        if (!costStandardEl) return;
+
+        const count = gateways ? gateways.length : 0;
+        
+        // Base API Standard cost of $5,000 per active gateway endpoint context
+        const standardCost = Math.max(5000, count * 5000); 
+        
+        // Calculate average savings ratio based on configured models
+        let totalSavingsRatio = 0;
+        if (count > 0) {
+            gateways.forEach(g => {
+                const modelKey = g.active_model;
+                const model = MODELS[modelKey] || MODELS['claude-sonnet'];
+                totalSavingsRatio += model.savingsRatio;
+            });
+        } else {
+            totalSavingsRatio = 0.75;
+        }
+        
+        const avgSavingsRatio = count > 0 ? (totalSavingsRatio / count) : 0.75;
+        const savingsValue = standardCost * avgSavingsRatio;
+        const optimizedCost = standardCost - savingsValue;
+
+        costStandardEl.textContent = `$${Math.round(standardCost).toLocaleString()}`;
+        costOptimizedEl.textContent = `$${Math.round(optimizedCost).toLocaleString()}`;
+        roiSavingsEl.textContent = `$${Math.round(savingsValue).toLocaleString()}`;
+        kpiSavingsRate.textContent = `${Math.round(avgSavingsRatio * 100)}%`;
     }
 
     // --- Usage Quota Progress Bar Refresher ---
