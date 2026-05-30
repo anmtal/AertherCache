@@ -21,43 +21,159 @@ export default {
       });
     }
 
-    // Route A: Vault Sync API Endpoint (Database-connected B2B Edge Vault)
+    // Route A: Vault Sync API Endpoint (Database-connected B2B Edge Vault - One-to-Many Relational)
     if (url.pathname === "/api/v1/key/vault" && request.method === "POST") {
       try {
-        const { key, email, model, protectionActive } = await request.json();
-
-        if (!key || !email || !model) {
-          return new Response(JSON.stringify({ error: "Missing parameters." }), {
+        let key, email, model, protectionActive, gatewayId, gatewayName;
+        try {
+          const bodyText = await request.text();
+          if (!bodyText) {
+            throw new Error("Request body is empty.");
+          }
+          const body = JSON.parse(bodyText);
+          key = body.key;
+          email = body.email;
+          model = body.model;
+          protectionActive = body.protectionActive;
+          gatewayId = body.gatewayId; // Present if editing existing config
+          gatewayName = body.name || "Default Gateway";
+        } catch (jsonErr) {
+          return new Response(JSON.stringify({ error: `JSON Parse Error of Request: ${jsonErr.message}` }), {
             status: 400,
             headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
           });
         }
 
-        const uniqueHash = btoa(email).substring(0, 8).toLowerCase();
-        const encryptedKey = `aes256_gcm_${btoa(key).substring(0, 16)}...`;
+        if (!key || !email || !model) {
+          return new Response(JSON.stringify({ error: "Missing parameters: key, email, or model." }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+          });
+        }
 
         let isPaid = true; // High-fidelity visual fallback for offline/development
-
-        // Query Supabase Postgres Database at the Edge if credentials are configured
+        let planTier = "startup"; // Default fallback
+        let userId = null;
+        
+        // 1. Connect with Supabase Relational Schema to check profiles & enforce quotas
         if (env.SUPABASE_URL && env.SUPABASE_ANON_KEY) {
           try {
-            const dbResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?email=eq.${email}&select=*`, {
+            console.log(`[Route A] Fetching profile from Supabase profiles table for: ${email}`);
+            const profileRes = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?email=eq.${email}&select=*`, {
               headers: {
                 "apikey": env.SUPABASE_ANON_KEY,
                 "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}`
               }
             });
-            const records = await dbResponse.json();
-            if (records && records.length > 0) {
-              isPaid = !!records[0].paid;
+            const profiles = await profileRes.json();
+            
+            if (profiles && profiles.length > 0) {
+              const profile = profiles[0];
+              userId = profile.id;
+              isPaid = !!profile.paid;
+              planTier = profile.plan_tier || "free";
             }
           } catch (err) {
-            console.error("[Supabase Edge Error]:", err.message);
+            console.error("[Supabase Profile Sync Error]:", err.message);
           }
         }
 
-        // Save key configuration in global isolated worker memory context
-        keyVault.set(uniqueHash, {
+        // 2. Enforce limits if it is a NEW gateway creation (gatewayId is not present)
+        let activeGatewayId = gatewayId;
+        let existingEncryptedKey = null;
+
+        if (activeGatewayId) {
+          // If editing, try to load existing credentials to avoid overwriting them
+          if (userId && env.SUPABASE_URL && env.SUPABASE_ANON_KEY) {
+            try {
+              console.log(`[Route A] Checking credentials for existing gateway: ${activeGatewayId}`);
+              const checkRes = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?gateway_id=eq.${activeGatewayId}&select=encrypted_api_key`, {
+                headers: {
+                  "apikey": env.SUPABASE_ANON_KEY,
+                  "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}`
+                }
+              });
+              const gates = await checkRes.json();
+              if (gates && gates.length > 0) {
+                existingEncryptedKey = gates[0].encrypted_api_key;
+              }
+            } catch (err) {
+              console.error("[Route A] Existing gateway fetch error:", err.message);
+            }
+          }
+        } else {
+          console.log(`[Route A] Detecting new gateway creation request. Plan Tier: ${planTier}`);
+          
+          let existingCount = 0;
+          if (userId && env.SUPABASE_URL && env.SUPABASE_ANON_KEY) {
+            try {
+              const gatewaysRes = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?user_id=eq.${userId}&select=gateway_id`, {
+                headers: {
+                  "apikey": env.SUPABASE_ANON_KEY,
+                  "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}`
+                }
+              });
+              const gateways = await gatewaysRes.json();
+              existingCount = gateways ? gateways.length : 0;
+            } catch (err) {
+              console.error("[Supabase Gateway Count Error]:", err.message);
+            }
+          }
+
+          console.log(`[Route A] Current active gateway count for user: ${existingCount}`);
+
+          // Quota Enforcements
+          if (planTier === "free" && existingCount >= 1) {
+            return new Response(JSON.stringify({ 
+              error: "limit_reached",
+              message: "Active prompt limit reached (1/1) for Free sandbox. Please upgrade to the Startup plan to unlock up to 3 active prompt gateways!" 
+            }), {
+              status: 403,
+              headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+            });
+          }
+          
+          if (planTier === "startup" && existingCount >= 3) {
+            return new Response(JSON.stringify({ 
+              error: "limit_reached",
+              message: "Active prompt limit reached (3/3). Please upgrade to the Growth plan to unlock up to 6 active prompt gateways!" 
+            }), {
+              status: 403,
+              headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+            });
+          }
+
+          if (planTier === "growth" && existingCount >= 6) {
+            return new Response(JSON.stringify({ 
+              error: "limit_reached",
+              message: "Active prompt limit reached (6/6). Please upgrade to the Enterprise plan (contact sales@aethercache.io) for unlimited active prompt gateways!" 
+            }), {
+              status: 403,
+              headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+            });
+          }
+
+          // Generate a cryptographically random unique 6-character hex hash for the new gateway
+          const hex = Array.from(crypto.getRandomValues(new Uint8Array(3)))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+          activeGatewayId = `ae_live_${hex}`;
+        }
+
+        const hash = activeGatewayId.replace("ae_live_", "");
+        let encryptedKey;
+        let dbEncryptedKey;
+
+        if (key === '__KEEP_EXISTING_KEY__' || key.startsWith('•••')) {
+          dbEncryptedKey = existingEncryptedKey || `aes256_gcm_placeholder...`;
+          encryptedKey = dbEncryptedKey;
+        } else {
+          encryptedKey = `aes256_gcm_${btoa(key).substring(0, 16)}...`;
+          dbEncryptedKey = key.substring(0, 16) + '...';
+        }
+
+        // 3. Save gateway configuration in global in-memory context
+        keyVault.set(hash, {
           email,
           model,
           encryptedKey,
@@ -65,14 +181,49 @@ export default {
           lastUpdated: new Date()
         });
 
-        console.log(`[AetherVault 🔒 Edge] API Key securely vaulted for gateway ID: ae_live_${uniqueHash} (Paid: ${isPaid})`);
+        // 4. Update/Insert in permanent database if credentials are present
+        if (userId && env.SUPABASE_URL && env.SUPABASE_ANON_KEY && env.SUPABASE_SERVICE_ROLE_KEY) {
+          try {
+            console.log(`[Route A] Writing gateway row ${activeGatewayId} to Supabase gateways table...`);
+            const payload = {
+              gateway_id: activeGatewayId,
+              user_id: userId,
+              name: gatewayName,
+              active_model: model,
+              encrypted_api_key: dbEncryptedKey,
+              protection_active: !!protectionActive,
+              updated_at: new Date()
+            };
+
+            const dbRes = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?gateway_id=eq.${activeGatewayId}`, {
+              method: gatewayId ? "PATCH" : "POST",
+              headers: {
+                "apikey": env.SUPABASE_ANON_KEY,
+                "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal"
+              },
+              body: JSON.stringify(payload)
+            });
+
+            if (!dbRes.ok) {
+              const dbErrText = await dbRes.text();
+              console.error("[Supabase DB Sync Failed]:", dbErrText);
+            }
+          } catch (err) {
+            console.error("[Supabase DB Sync Error]:", err.message);
+          }
+        }
+
+        console.log(`[AetherVault 🔒 Edge] API Key securely synchronized for gateway ID: ${activeGatewayId} (Paid: ${isPaid}, Plan: ${planTier})`);
 
         return new Response(
           JSON.stringify({
             success: true,
             paid: isPaid,
-            gatewayId: `ae_live_${uniqueHash}`,
-            gatewayUrl: `${url.origin}/api/v1/chat/completions/ae_live_${uniqueHash}`
+            planTier: planTier,
+            gatewayId: activeGatewayId,
+            gatewayUrl: `${url.origin}/api/v1/chat/completions/${activeGatewayId}`
           }),
           {
             status: 200,
@@ -80,7 +231,7 @@ export default {
           }
         );
       } catch (err) {
-        return new Response(JSON.stringify({ error: "Invalid JSON request body." }), {
+        return new Response(JSON.stringify({ error: `Unexpected error in Route A: ${err.message}` }), {
           status: 400,
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
         });
@@ -90,10 +241,26 @@ export default {
     // Route C: Stripe Checkout Session Endpoint (Zero-dependency edge-proxy REST API)
     if (url.pathname === "/api/v1/checkout/session" && request.method === "POST") {
       try {
-        const { plan, email, urlOrigin } = await request.json();
+        let plan, email, urlOrigin;
+        try {
+          const bodyText = await request.text();
+          console.log("[Route C] Raw request body:", bodyText);
+          if (!bodyText) {
+            throw new Error("Request body is empty.");
+          }
+          const body = JSON.parse(bodyText);
+          plan = body.plan;
+          email = body.email;
+          urlOrigin = body.urlOrigin;
+        } catch (jsonErr) {
+          return new Response(JSON.stringify({ error: `JSON Parse Error of Request: ${jsonErr.message}` }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+          });
+        }
 
         if (!plan || !email || !urlOrigin) {
-          return new Response(JSON.stringify({ error: "Missing parameters." }), {
+          return new Response(JSON.stringify({ error: "Missing parameters: plan, email, or urlOrigin." }), {
             status: 400,
             headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
           });
@@ -105,25 +272,50 @@ export default {
 
         // Perform native edge direct API request to Stripe if secret key is present
         if (env.STRIPE_SECRET_KEY) {
-          const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+          const rawKey = env.STRIPE_SECRET_KEY;
+          console.log("[Route C] Stripe key length:", rawKey.length);
+          console.log("[Route C] Stripe key starts with:", rawKey.substring(0, 8));
+          console.log("[Route C] Stripe key ends with:", rawKey.substring(rawKey.length - 8));
+          console.log("[Route C] Stripe key contains newline or carriage return:", rawKey.includes("\n") || rawKey.includes("\r"));
+          console.log("[Route C] Stripe key has leading/trailing space:", rawKey.trim() !== rawKey);
+
+          const params = new URLSearchParams({
+            "payment_method_types[0]": "card",
+            "line_items[0][price]": priceId,
+            "line_items[0][quantity]": "1",
+            "mode": "subscription",
+            "customer_email": email,
+            "success_url": `${urlOrigin}/?session_id={CHECKOUT_SESSION_ID}&success=true`,
+            "cancel_url": `${urlOrigin}/?cancel=true`,
+            "automatic_tax[enabled]": "true",
+            "metadata[plan]": plan // Inject plan metadata to capture during webhook completed callbacks
+          });
+          const bodyString = params.toString();
+          console.log("[Route C] Request body to Stripe:", bodyString);
+
+          console.log("[Route C] Stripe key present. Fetching checkout session...");
+          const stripeResponse = await fetch("https://api.stripe.com/v1/checkout/sessions", {
             method: "POST",
             headers: {
-              "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}`,
+              "Authorization": `Bearer ${env.STRIPE_SECRET_KEY.trim()}`,
               "Content-Type": "application/x-www-form-urlencoded"
             },
-            body: new URLSearchParams({
-              "payment_method_types[0]": "card",
-              "line_items[0][price]": priceId,
-              "line_items[0][quantity]": "1",
-              "mode": "subscription",
-              "customer_email": email,
-              "success_url": `${urlOrigin}/?session_id={CHECKOUT_SESSION_ID}&success=true`,
-              "cancel_url": `${urlOrigin}/?cancel=true`,
-              "automatic_tax[enabled]": "true"
-            }).toString()
+            body: bodyString
           });
 
-          const data = await response.json();
+          let data;
+          const resText = await stripeResponse.text();
+          console.log("[Route C] Stripe response status:", stripeResponse.status, "body:", resText);
+          
+          try {
+            data = JSON.parse(resText);
+          } catch (stripeJsonErr) {
+            return new Response(JSON.stringify({ error: `Stripe JSON Parse Error: ${stripeJsonErr.message}. Stripe Response: ${resText}` }), {
+              status: 500,
+              headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+            });
+          }
+
           if (data.error) {
             console.error(`[Stripe Worker REST API Error]`, data.error.message);
             return new Response(JSON.stringify({ error: data.error.message }), {
@@ -144,14 +336,14 @@ export default {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
         });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), {
+        return new Response(JSON.stringify({ error: `Unexpected error in Route C: ${err.message}` }), {
           status: 400,
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
         });
       }
     }
 
-    // Route D: Stripe Webhook Listener (Secure Edge Interceptor)
+    // Route D: Stripe Webhook Listener (Secure Edge Interceptor - Relational Profiles Sync)
     if (url.pathname === "/api/v1/stripe/webhook" && request.method === "POST") {
       try {
         const bodyText = await request.text();
@@ -168,39 +360,46 @@ export default {
 
         let email = null;
         let paidStatus = null;
+        let selectedPlan = "free";
 
         if (event.type === "checkout.session.completed") {
           const session = event.data.object;
           email = session.customer_email || (session.customer_details && session.customer_details.email);
           paidStatus = true;
-          console.log(`[Stripe Webhook] Received checkout.session.completed. Parsing email: ${email}`);
+          
+          // Detect plan from Stripe Session Metadata or Price IDs
+          selectedPlan = session.metadata?.plan || "startup";
+          console.log(`[Stripe Webhook] Received checkout.session.completed. Email: ${email}, Plan: ${selectedPlan}`);
         } else if (event.type === "customer.subscription.deleted") {
           const subscription = event.data.object;
           const customerId = subscription.customer;
           email = await fetchCustomerEmail(customerId, env);
           paidStatus = false;
-          console.log(`[Stripe Webhook] Received customer.subscription.deleted for ${email} (Customer ID: ${customerId})`);
+          selectedPlan = "free";
+          console.log(`[Stripe Webhook] Received customer.subscription.deleted for ${email}`);
         } else if (event.type === "invoice.payment_failed") {
           const invoice = event.data.object;
           const customerId = invoice.customer;
           email = await fetchCustomerEmail(customerId, env);
           paidStatus = false;
-          console.log(`[Stripe Webhook] Received invoice.payment_failed for ${email} (Customer ID: ${customerId})`);
+          selectedPlan = "free";
+          console.log(`[Stripe Webhook] Received invoice.payment_failed for ${email}`);
         } else if (event.type === "customer.subscription.updated") {
           const subscription = event.data.object;
           const customerId = subscription.customer;
           email = await fetchCustomerEmail(customerId, env);
           const status = subscription.status;
           paidStatus = (status === "active" || status === "trialing");
-          console.log(`[Stripe Webhook] Received customer.subscription.updated for ${email} (Status: ${status}, Paid: ${paidStatus})`);
+          selectedPlan = paidStatus ? "startup" : "free"; // fallback default
+          console.log(`[Stripe Webhook] Received customer.subscription.updated. Paid: ${paidStatus}`);
         }
 
         if (email && paidStatus !== null) {
           if (env.SUPABASE_URL && env.SUPABASE_ANON_KEY && env.SUPABASE_SERVICE_ROLE_KEY) {
-            console.log(`[Stripe Webhook] Updating Supabase gateways table for ${email}: paid = ${paidStatus}`);
+            console.log(`[Stripe Webhook] Syncing Supabase profiles table for ${email}: paid = ${paidStatus}, plan_tier = ${selectedPlan}`);
             
-            // PATCH update to gateways table
-            const dbResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?email=eq.${email}`, {
+            // PATCH update to profiles table
+            const dbResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/profiles?email=eq.${email}`, {
               method: "PATCH",
               headers: {
                 "apikey": env.SUPABASE_ANON_KEY,
@@ -210,21 +409,20 @@ export default {
               },
               body: JSON.stringify({
                 paid: paidStatus,
+                plan_tier: selectedPlan,
                 updated_at: new Date()
               })
             });
 
             if (dbResponse.ok) {
-              console.log(`[Stripe Webhook] Supabase updated successfully: set paid=${paidStatus} for ${email}`);
+              console.log(`[Stripe Webhook] Supabase updated successfully: set profiles paid=${paidStatus}, plan_tier=${selectedPlan} for ${email}`);
             } else {
               const errText = await dbResponse.text();
-              console.error(`[Stripe Webhook] Supabase update failed:`, errText);
+              console.error(`[Stripe Webhook] Supabase profile update failed:`, errText);
             }
           } else {
             console.error(`[Stripe Webhook] Missing Supabase database connection credentials.`);
           }
-        } else {
-          console.log(`[Stripe Webhook] Event type "${event.type}" received but no status update required.`);
         }
 
         return new Response(JSON.stringify({ received: true }), {
@@ -239,16 +437,17 @@ export default {
       }
     }
 
-    // Route B: Caching Proxy Completions Endpoint (SSE Stream Interceptor & Cold Start Database Restore)
+    // Route B: Caching Proxy Completions Endpoint (SSE Stream Interceptor & Cold Start Relational Restore)
     if (url.pathname.startsWith("/api/v1/chat/completions/ae_live_") && request.method === "POST") {
       const gatewayId = url.pathname.split("/").pop();
       const hash = gatewayId.replace("ae_live_", "");
       let userConfig = keyVault.get(hash);
 
-      // If missing in global memory (e.g. on edge node cold starts), automatically restore from Supabase Database
+      // If missing in global memory (e.g. on edge node cold starts), automatically restore from Supabase Database Relational Join
       if (!userConfig && env.SUPABASE_URL && env.SUPABASE_ANON_KEY) {
         try {
-          const dbResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?gateway_id=eq.${gatewayId}&select=*`, {
+          console.log(`[AetherProxy 🚀 Cold Start] Restoring relational config from Supabase for gateway: ${gatewayId}`);
+          const dbResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?gateway_id=eq.${gatewayId}&select=*,profiles(*)`, {
             headers: {
               "apikey": env.SUPABASE_ANON_KEY,
               "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}`
@@ -256,19 +455,20 @@ export default {
           });
           const records = await dbResponse.json();
           if (records && records.length > 0) {
-            const profile = records[0];
+            const gatewayRow = records[0];
+            const profile = gatewayRow.profiles;
             
             // Only restore if user has active paid subscription
-            if (profile.paid) {
+            if (profile && profile.paid) {
               keyVault.set(hash, {
                 email: profile.email,
-                model: profile.active_model,
-                encryptedKey: profile.encrypted_api_key || "aes256_gcm_placeholder...",
-                protectionActive: profile.protection_active,
+                model: gatewayRow.active_model,
+                encryptedKey: gatewayRow.encrypted_api_key || "aes256_gcm_placeholder...",
+                protectionActive: gatewayRow.protection_active,
                 lastUpdated: new Date()
               });
               userConfig = keyVault.get(hash);
-              console.log(`[AetherProxy 🚀 Cold Start] Successfully restored vault state from Supabase for gateway: ${gatewayId}`);
+              console.log(`[AetherProxy 🚀 Cold Start] Restored configurations successfully for ${profile.email}`);
             }
           }
         } catch (err) {
@@ -291,7 +491,6 @@ export default {
         console.log(`[AetherProxy 🔒 Decrypt] Decrypted vaulted credentials in-memory for proxy call.`);
 
         // In-Memory Prompt Caching Refactoring Simulation
-        // Injects ephemeral cache parameters inside messages prefix context
         const refactoredMessages = [
           ...messages.slice(0, -1),
           { ...messages[messages.length - 1], cache_control: { type: "ephemeral" } }
@@ -312,7 +511,6 @@ export default {
             " with", " zero", " latency", " overhead."
         ];
 
-        // Process mock streaming responses
         ctx.waitUntil(
           (async () => {
             for (let i = 0; i < mockTokens.length; i++) {
@@ -374,7 +572,7 @@ export default {
           console.log(`[AetherPing 🟢 Heartbeat] Dispatching background prefix dummy request for ${config.email} (${config.model})`);
           console.log(`[AetherPing 🟢 Heartbeat] Edge cache warmed successfully. Eviction locked.`);
         } else {
-          console.log(`[AetherPing 🟡 Throttled] Heartbeat skipped for ${config.email} (${config.model}) to conserve request quota. Cache remains warm (eviction interval is 10 mins).`);
+          console.log(`[AetherPing 🟡 Throttled] Heartbeat skipped for ${config.email} (${config.model}) to conserve request quota. Cache remains warm.`);
         }
       } else {
         console.log(`[AetherPing 🔴 Suspended] Heartbeats paused for unpaid or inactive instance of ${config.email}`);
@@ -400,4 +598,3 @@ async function fetchCustomerEmail(customerId, env) {
   }
   return null;
 }
-
