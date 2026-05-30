@@ -907,9 +907,9 @@ document.addEventListener('DOMContentLoaded', () => {
             headerStatusContainer.style.display = 'none';
             
             if (heartbeatToggle) {
-                heartbeatToggle.disabled = true;
+                heartbeatToggle.disabled = false;
                 heartbeatToggle.checked = false;
-                heartbeatStatusBadge.textContent = "PROTECTION LOCKED";
+                heartbeatStatusBadge.textContent = "PROTECTION DEACTIVATED";
                 heartbeatStatusBadge.className = "toggle-label inactive";
             }
 
@@ -917,7 +917,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cacheTempFill.className = "progress-bar-fill bg-red-gradient";
             cacheStatePill.className = "status-pill state-cold";
             cacheStatePill.textContent = "INACTIVE";
-            cacheStateText.textContent = "Safeguards locked. Please log in to your account and activate AetherPing.";
+            cacheStateText.textContent = "Safeguards deactivated. Please select a premium plan to activate automatic keep-warm edge protection.";
 
         } else {
             // State 2: LOGGED IN Unpaid Account
@@ -925,9 +925,9 @@ document.addEventListener('DOMContentLoaded', () => {
             headerStatusContainer.innerHTML = '<span class="unpaid-badge">● Sandbox (Unpaid)</span>';
 
             if (heartbeatToggle) {
-                heartbeatToggle.disabled = true;
+                heartbeatToggle.disabled = false;
                 heartbeatToggle.checked = false;
-                heartbeatStatusBadge.textContent = "PROTECTION UNPAID";
+                heartbeatStatusBadge.textContent = "PROTECTION DEACTIVATED";
                 heartbeatStatusBadge.className = "toggle-label inactive";
             }
 
@@ -935,7 +935,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cacheTempFill.className = "progress-bar-fill bg-red-gradient";
             cacheStatePill.className = "status-pill state-cold";
             cacheStatePill.textContent = "INACTIVE (Unpaid)";
-            cacheStateText.textContent = "Automated safeguards disabled. Select a premium plan below to unlock protection.";
+            cacheStateText.textContent = "Automated safeguards deactivated. Select a premium plan below to activate automatic keep-warm edge protection.";
         }
     }
 
@@ -1232,7 +1232,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     if (heartbeatToggle) {
-        heartbeatToggle.addEventListener('change', updateSimulator);
+        heartbeatToggle.addEventListener('change', () => {
+            const loggedInUser = localStorage.getItem('aether_user');
+            const isPaid = localStorage.getItem('aether_paid') === 'true';
+
+            if (!loggedInUser || !isPaid) {
+                heartbeatToggle.checked = false;
+                alert("🚫 Caching protection is deactivated. Please select a premium plan below to activate automatic keep-warm edge safeguards!");
+                
+                const pricingSection = document.querySelector('.pricing-section') || document.getElementById('pricing-section');
+                if (pricingSection) {
+                    pricingSection.scrollIntoView({ behavior: 'smooth' });
+                }
+            } else {
+                updateSimulator();
+            }
+        });
     }
 
     // AetherAudit Event Listeners
