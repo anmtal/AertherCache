@@ -1097,6 +1097,39 @@ input:checked + .slider-toggle::before {
     color: var(--text-muted);
 }
 
+.footer-left {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.footer-contact {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-top: 4px;
+}
+
+.footer-contact-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.2s ease, text-shadow 0.2s ease;
+}
+
+.footer-contact-item:hover {
+    color: var(--color-cyan);
+    text-shadow: 0 0 8px rgba(34, 211, 238, 0.4);
+}
+
+.contact-icon {
+    width: 14px;
+    height: 14px;
+    stroke-width: 2px;
+}
+
 .status-indicator-footer {
     display: flex;
     align-items: center;
@@ -1120,6 +1153,19 @@ input:checked + .slider-toggle::before {
     
     .hero-title {
         font-size: 32px;
+    }
+    
+    .app-footer {
+        flex-direction: column;
+        gap: 16px;
+        align-items: flex-start;
+        padding-bottom: 24px;
+    }
+    
+    .footer-contact {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
     }
 }
 
