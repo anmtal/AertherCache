@@ -144,7 +144,7 @@ export default {
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
         });
       } catch (err) {
-        return new Response(JSON.stringify({ error: "Invalid checkout request body." }), {
+        return new Response(JSON.stringify({ error: err.message }), {
           status: 400,
           headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
         });
