@@ -34,6 +34,12 @@
                 </div>
             </div>
             
+            <!-- Header Navigation tabs (Only shown when logged in and paid) -->
+            <nav class="header-nav" id="header-nav">
+                <button class="nav-tab active" id="nav-tab-dash">Dashboard</button>
+                <button class="nav-tab" id="nav-tab-home">Home</button>
+            </nav>
+            
             <div class="header-actions">
                 <button class="login-btn" id="login-btn">Client Login</button>
                 <div class="user-profile" id="user-profile" style="display: none;">
@@ -134,9 +140,9 @@
                     <div class="slider-group" style="margin-top: 8px;">
                         <div class="slider-info">
                             <span class="slider-label" style="font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Estimated Daily API Calls</span>
-                            <span class="slider-value" id="audit-calls-value" style="font-size: 15px; font-weight: 700; color: var(--text-primary); background: rgba(255, 255, 255, 0.05); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">10,000</span>
+                            <span class="slider-value" id="audit-calls-value" style="font-size: 15px; font-weight: 700; color: var(--text-primary); background: rgba(255, 255, 255, 0.05); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.05);">100,000</span>
                         </div>
-                        <input type="range" id="audit-calls-slider" min="1000" max="100000" step="1000" value="10000" class="custom-slider">
+                        <input type="range" id="audit-calls-slider" min="1000" max="10000000" step="10000" value="100000" class="custom-slider">
                         <span class="slider-tip">Slide to select expected daily queries using this repeating prompt context.</span>
                     </div>
                 </div>
@@ -395,7 +401,7 @@
                     </div>
                     <p class="plan-desc">For early-stage products and chat agents spending up to $3,000/mo on AI costs.</p>
                     <ul class="plan-features">
-                        <li><span>●</span> Up to 5 Active Prompts</li>
+                        <li><span>●</span> Up to 3 Active Endpoints</li>
                         <li><span>●</span> 24/7 Keep-Warm Heartbeats</li>
                         <li><span>●</span> AES-256 Edge Encryption</li>
                         <li><span>●</span> Standard Support</li>
@@ -414,7 +420,7 @@
                     </div>
                     <p class="plan-desc">For high-traffic applications and AI scale-ups spending up to $15,000/mo on AI costs.</p>
                     <ul class="plan-features">
-                        <li><span>●</span> Up to 25 Active Prompts</li>
+                        <li><span>●</span> Up to 6 Active Endpoints</li>
                         <li><span>●</span> Smart Dynamic Heartbeats</li>
                         <li><span>●</span> Dedicated API Gateway Instance</li>
                         <li><span>●</span> Priority Developer Support</li>
@@ -430,7 +436,7 @@
                     </div>
                     <p class="plan-desc">For high-throughput AI fleets, large-scale custom models, and specialized enterprise setups.</p>
                     <ul class="plan-features">
-                        <li><span>●</span> Unlimited Active Prompts</li>
+                        <li><span>●</span> Unlimited Active Endpoints</li>
                         <li><span>●</span> Dedicated Edge Infrastructure</li>
                         <li><span>●</span> Custom Cache Expiry Logic</li>
                         <li><span>●</span> 24/7 Call Support & SLA</li>
@@ -445,110 +451,57 @@
         <!-- Dedicated Client Dashboard Workspace (Only shown when logged in and paid) -->
         <div id="client-dashboard-container" style="display: none;">
             <div class="console-wrapper">
-                <div class="glass-card console-card-focused">
-                    <!-- Dashboard Header with Status Toggle -->
+                <div class="glass-card console-card-focused full-width-card">
+                    <!-- Dashboard Header with Status Quota -->
                     <div class="console-card-header">
                         <div class="console-title-group">
-                            <span class="console-badge">ENTERPRISE CACHE SAFEGUARD</span>
-                            <h2 id="dash-active-model-display">Claude 3.5 Sonnet</h2>
-                            <p class="console-subtitle" id="dash-state-description">AetherPing active protection keeping your caches warm.</p>
+                            <span class="console-badge">ENTERPRISE CACHE SAFEGUARDS</span>
+                            <h2>Autonomous Edge Gateways</h2>
+                            <p class="console-subtitle">Create, monitor, and manage your isolated prompt cache endpoints dynamically.</p>
                         </div>
                         
-                        <!-- Toggle Switch -->
-                        <div class="toggle-switch-wrapper console-toggle">
-                            <span class="toggle-label" id="dash-heartbeat-status-badge">PROTECTION ACTIVE</span>
-                            <label class="switch">
-                                <input type="checkbox" id="dash-heartbeat-toggle" checked>
-                                <span class="slider-toggle round"></span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Cache Heat/Integrity Meter -->
-                    <div class="cache-status-container">
-                        <div class="status-indicator-panel">
-                            <div class="temp-indicator-wrapper">
-                                <div class="temp-header-row">
-                                    <span class="temp-label">CACHE INTEGRITY & HEAT</span>
-                                    <span class="temp-percentage" id="dash-temp-percentage">100%</span>
+                        <!-- Quota Stats & Add Button -->
+                        <div class="console-quota-action">
+                            <div class="quota-counter-box">
+                                <div class="quota-text-row">
+                                    <span class="quota-label">Usage Quota</span>
+                                    <span class="quota-status-counter" id="quota-status-counter">1/3 Endpoints Connected</span>
                                 </div>
-                                <div class="progress-bar-track">
-                                    <div class="progress-bar-fill bg-emerald-gradient" id="dash-cache-temp-fill" style="width: 100%;"></div>
+                                <div class="quota-progress-track">
+                                    <div class="quota-progress-fill" id="quota-progress-fill" style="width: 33.3%;"></div>
                                 </div>
                             </div>
-                            <div class="status-details">
-                                <div class="status-pill state-warm" id="dash-cache-state-pill">100% WARM & SECURED</div>
-                                <div class="status-subtext" id="dash-cache-state-text">Active protection enabled. Heartbeats automated to keep your cache permanently warm.</div>
-                            </div>
+                            
+                            <button class="add-gateway-btn" id="add-gateway-btn">
+                                <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.5" fill="none">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                Create New Gateway
+                            </button>
                         </div>
                     </div>
 
-                    <div class="console-divider"></div>
-
-                    <!-- Gateway Configuration Form -->
-                    <div class="console-config-section">
-                        <!-- Model Selector -->
-                        <div class="form-group">
-                            <label for="dash-model-selector">Change Your AI Model</label>
-                            <div class="select-wrapper">
-                                <select id="dash-model-selector">
-                                    <option value="claude-sonnet" selected>Claude 3.5 Sonnet (Anthropic)</option>
-                                    <option value="claude-haiku">Claude 3.5 Haiku (Anthropic)</option>
-                                    <option value="claude-opus">Claude 3.0 Opus (Anthropic)</option>
-                                    <option value="gpt-4o">GPT-4o (OpenAI)</option>
-                                    <option value="gpt-4o-mini">GPT-4o-mini (OpenAI)</option>
-                                    <option value="gemini-pro">Gemini 1.5 Pro (Google)</option>
-                                    <option value="gemini-flash">Gemini 1.5 Flash (Google)</option>
-                                    <option value="deepseek-v3">DeepSeek-V3 (DeepSeek)</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- API Key Input -->
-                        <div class="form-group">
-                            <label for="dash-api-key-input">Enter API Key</label>
-                            <div class="api-input-wrapper">
-                                <input type="password" id="dash-api-key-input" placeholder="Paste your API key (e.g., sk-...)" class="api-key-field">
-                                <span class="secure-badge">
-                                    <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2" fill="none">
-                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                                    </svg>
-                                    AES-256 Secure
-                                </span>
-                            </div>
-                            <!-- Dynamic API Key Instructions Container -->
-                            <div class="key-instructions-box" id="dash-key-instructions-container">
-                                <span class="key-instructions-title" id="dash-key-instructions-title">HOW TO FIND YOUR ANTHROPIC KEY:</span>
-                                <p id="dash-key-instructions-text">Go to your Anthropic Console -> API Keys -> click 'Create Key'.</p>
-                            </div>
-                        </div>
-
-                        <!-- Vault Button -->
-                        <button class="live-test-btn" id="dash-generate-btn">
-                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none">
-                                <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
-                            Vault Settings & Sync Gateway
-                        </button>
-
-                        <!-- Generated Outcome -->
-                        <div class="integration-outcome" id="dash-outcome-box" style="display: none;">
-                            <div class="outcome-success-badge">
-                                <span class="outcome-dot"></span>
-                                <span>Proxy Connection Active</span>
-                            </div>
-                            <p class="outcome-desc">
-                                Copy your dedicated Base URL to direct your SDK to our caching proxy:
-                            </p>
-                            <div class="url-card">
-                                <span class="gateway-url-text" id="dash-gateway-url">https://api.aethercache.com/v1</span>
-                                <button class="copy-url-btn" id="dash-copy-url-btn">
-                                    <span>Copy URL</span>
-                                </button>
-                            </div>
-                        </div>
+                    <!-- Relational Gateways Manager Table/List -->
+                    <div class="gateways-table-container">
+                        <table class="gateways-table">
+                            <thead>
+                                <tr>
+                                    <th>Gateway Name</th>
+                                    <th>Active Model</th>
+                                    <th>Cache Protection</th>
+                                    <th>Dedicated Endpoint URL</th>
+                                    <th class="actions-header">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="gateways-list-tbody">
+                                <tr>
+                                    <td colspan="5" class="table-loading-row">Loading gateways configuration...</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
+
                 </div>
             </div>
         </div>
@@ -606,6 +559,74 @@
             </form>
 
             <span class="auth-toggle-link" id="auth-toggle-type">Don't have an enterprise account? Create one</span>
+        </div>
+    </div>
+
+    <!-- Sleek Gateway Configurations Modal -->
+    <div class="modal-overlay" id="gateway-config-modal">
+        <div class="modal-card config-modal-card">
+            <button class="modal-close-btn" id="config-modal-close-btn">&times;</button>
+            <div class="modal-title-wrapper text-left-modal">
+                <h3 id="config-modal-title">Configure Edge Gateway</h3>
+                <p>Vault your credentials securely to synchronize an isolated prompt caching endpoint.</p>
+            </div>
+            
+            <form class="auth-form" id="gateway-config-form" onsubmit="return false;">
+                <input type="hidden" id="config-gateway-id">
+                
+                <!-- Gateway Name -->
+                <div class="form-group">
+                    <label for="config-gateway-name">Gateway Name</label>
+                    <input type="text" id="config-gateway-name" placeholder="e.g. Chatbot - Production" class="auth-input" required>
+                </div>
+
+                <!-- Model Selector -->
+                <div class="form-group">
+                    <label for="config-model-selector">Target AI Model</label>
+                    <div class="select-wrapper">
+                        <select id="config-model-selector" class="auth-input select-field">
+                            <option value="claude-sonnet" selected>Claude 3.5 Sonnet (Anthropic)</option>
+                            <option value="claude-haiku">Claude 3.5 Haiku (Anthropic)</option>
+                            <option value="claude-opus">Claude 3.0 Opus (Anthropic)</option>
+                            <option value="gpt-4o">GPT-4o (OpenAI)</option>
+                            <option value="gpt-4o-mini">GPT-4o-mini (OpenAI)</option>
+                            <option value="gemini-pro">Gemini 1.5 Pro (Google)</option>
+                            <option value="gemini-flash">Gemini 1.5 Flash (Google)</option>
+                            <option value="deepseek-v3">DeepSeek-V3 (DeepSeek)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- API Key Input -->
+                <div class="form-group">
+                    <label for="config-api-key-input">Provider API Key</label>
+                    <div class="api-input-wrapper">
+                        <input type="password" id="config-api-key-input" placeholder="Paste your API key (e.g., sk-...)" class="auth-input" required>
+                        <span class="secure-badge">
+                            <svg viewBox="0 0 24 24" width="10" height="10" stroke="currentColor" stroke-width="2" fill="none">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                            AES-256
+                        </span>
+                    </div>
+                    <!-- Dynamic API Key Instructions Container -->
+                    <div class="key-instructions-box" id="config-key-instructions-container" style="margin-top: 8px;">
+                        <span class="key-instructions-title" id="config-key-instructions-title">HOW TO FIND YOUR ANTHROPIC KEY:</span>
+                        <p id="config-key-instructions-text" style="font-size: 11px; margin: 0; color: var(--text-muted);">Go to your Anthropic Console -> API Keys -> click 'Create Key'.</p>
+                    </div>
+                </div>
+
+                <!-- Heartbeat Warming Checkbox -->
+                <div class="form-group checkbox-group" style="display: flex; align-items: center; gap: 8px; margin: 15px 0;">
+                    <input type="checkbox" id="config-heartbeat-toggle" checked style="width: auto; margin: 0; cursor: pointer;">
+                    <label for="config-heartbeat-toggle" style="font-size: 13px; font-weight: normal; color: var(--text-secondary); cursor: pointer; user-select: none; margin: 0;">
+                        Enable Active Keep-Warm Safeguards (AetherPing Heartbeats)
+                    </label>
+                </div>
+
+                <button type="submit" class="auth-btn" id="config-submit-btn" style="margin-top: 10px;">Vault & Synchronize Edge</button>
+            </form>
         </div>
     </div>
 
