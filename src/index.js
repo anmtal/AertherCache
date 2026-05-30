@@ -166,15 +166,40 @@ export default {
           });
         }
 
-        // Handle successful checkout session completions
+        let email = null;
+        let paidStatus = null;
+
         if (event.type === "checkout.session.completed") {
           const session = event.data.object;
-          const email = session.customer_email || (session.customer_details && session.customer_details.email);
+          email = session.customer_email || (session.customer_details && session.customer_details.email);
+          paidStatus = true;
+          console.log(`[Stripe Webhook] Received checkout.session.completed. Parsing email: ${email}`);
+        } else if (event.type === "customer.subscription.deleted") {
+          const subscription = event.data.object;
+          const customerId = subscription.customer;
+          email = await fetchCustomerEmail(customerId, env);
+          paidStatus = false;
+          console.log(`[Stripe Webhook] Received customer.subscription.deleted for ${email} (Customer ID: ${customerId})`);
+        } else if (event.type === "invoice.payment_failed") {
+          const invoice = event.data.object;
+          const customerId = invoice.customer;
+          email = await fetchCustomerEmail(customerId, env);
+          paidStatus = false;
+          console.log(`[Stripe Webhook] Received invoice.payment_failed for ${email} (Customer ID: ${customerId})`);
+        } else if (event.type === "customer.subscription.updated") {
+          const subscription = event.data.object;
+          const customerId = subscription.customer;
+          email = await fetchCustomerEmail(customerId, env);
+          const status = subscription.status;
+          paidStatus = (status === "active" || status === "trialing");
+          console.log(`[Stripe Webhook] Received customer.subscription.updated for ${email} (Status: ${status}, Paid: ${paidStatus})`);
+        }
 
-          if (email && env.SUPABASE_URL && env.SUPABASE_ANON_KEY && env.SUPABASE_SERVICE_ROLE_KEY) {
-            console.log(`[Stripe Webhook] Verified checkout.session.completed for ${email}. Updating Supabase...`);
+        if (email && paidStatus !== null) {
+          if (env.SUPABASE_URL && env.SUPABASE_ANON_KEY && env.SUPABASE_SERVICE_ROLE_KEY) {
+            console.log(`[Stripe Webhook] Updating Supabase gateways table for ${email}: paid = ${paidStatus}`);
             
-            // PATCH update to gateways table to set paid: true
+            // PATCH update to gateways table
             const dbResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?email=eq.${email}`, {
               method: "PATCH",
               headers: {
@@ -184,20 +209,22 @@ export default {
                 "Prefer": "return=minimal"
               },
               body: JSON.stringify({
-                paid: true,
+                paid: paidStatus,
                 updated_at: new Date()
               })
             });
 
             if (dbResponse.ok) {
-              console.log(`[Stripe Webhook] Supabase updated successfully: set paid=true for ${email}`);
+              console.log(`[Stripe Webhook] Supabase updated successfully: set paid=${paidStatus} for ${email}`);
             } else {
               const errText = await dbResponse.text();
               console.error(`[Stripe Webhook] Supabase update failed:`, errText);
             }
           } else {
-            console.error(`[Stripe Webhook] Missing customer email or database connection credentials.`);
+            console.error(`[Stripe Webhook] Missing Supabase database connection credentials.`);
           }
+        } else {
+          console.log(`[Stripe Webhook] Event type "${event.type}" received but no status update required.`);
         }
 
         return new Response(JSON.stringify({ received: true }), {
@@ -355,3 +382,22 @@ export default {
     });
   }
 };
+
+async function fetchCustomerEmail(customerId, env) {
+  if (!customerId || !env.STRIPE_SECRET_KEY) return null;
+  try {
+    const res = await fetch(`https://api.stripe.com/v1/customers/${customerId}`, {
+      headers: {
+        "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}`
+      }
+    });
+    if (res.ok) {
+      const customer = await res.json();
+      return customer.email;
+    }
+  } catch (err) {
+    console.error("[Stripe Customer Fetch Error]:", err.message);
+  }
+  return null;
+}
+
