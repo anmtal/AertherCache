@@ -1566,9 +1566,9 @@ input:disabled {
     justify-content: center;
     align-items: center;
     width: 100%;
-    max-width: 640px;
-    margin: 60px auto;
-    padding: 0 16px;
+    max-width: 100%;
+    margin: 40px auto;
+    padding: 0;
     animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
