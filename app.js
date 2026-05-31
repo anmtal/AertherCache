@@ -1240,26 +1240,35 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (heartbeatToggle) {
         heartbeatToggle.addEventListener('click', (e) => {
+            e.preventDefault(); // Keep it visually OFF for everyone
+            
             const loggedInUser = localStorage.getItem('aether_user');
             const isPaid = localStorage.getItem('aether_paid') === 'true';
 
-            if (!loggedInUser || !isPaid) {
-                e.preventDefault(); // Keep it visually OFF
-                
-                alert("🚫 Caching protection is deactivated. Please sign in and subscribe to one of our premium plans to activate automatic keep-warm safeguards!");
+            if (loggedInUser && isPaid) {
+                // If user is logged in and paid, do absolutely nothing
+                return;
+            }
+
+            if (!loggedInUser) {
+                // If user is logged out
+                alert("🚫 Caching protection is deactivated. Please sign in and pay if you have not already.");
                 
                 const pricingSection = document.querySelector('.pricing-section') || document.getElementById('pricing-section');
                 if (pricingSection) {
                     pricingSection.scrollIntoView({ behavior: 'smooth' });
                 }
+                return;
             }
-        });
 
-        heartbeatToggle.addEventListener('change', () => {
-            const loggedInUser = localStorage.getItem('aether_user');
-            const isPaid = localStorage.getItem('aether_paid') === 'true';
-            if (loggedInUser && isPaid) {
-                updateSimulator();
+            if (loggedInUser && !isPaid) {
+                // If user is logged in but unpaid
+                alert("🚫 Caching protection is deactivated. Please select a premium plan below to activate automatic keep-warm safeguards!");
+                
+                const pricingSection = document.querySelector('.pricing-section') || document.getElementById('pricing-section');
+                if (pricingSection) {
+                    pricingSection.scrollIntoView({ behavior: 'smooth' });
+                }
             }
         });
     }
