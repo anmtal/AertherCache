@@ -2391,4 +2391,116 @@ input:disabled {
     text-shadow: 0 0 5px rgba(255, 255, 255, 0.2);
 }
 
+/* ==========================================================================
+   Dashboard Telemetry Symmetrical Grid Refactoring
+   ========================================================================== */
+.dash-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    width: 100%;
+}
+
+.dash-kpi-grid .roi-box {
+    background: rgba(255, 255, 255, 0.015);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    padding: 24px;
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: var(--transition-smooth);
+}
+
+.dash-kpi-grid .roi-box:hover {
+    border-color: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.035);
+    transform: translateY(-2px);
+}
+
+/* Beautiful custom glow colors for Dashboard Boxes */
+.dash-kpi-grid .border-red {
+    border-color: rgba(239, 68, 68, 0.15) !important;
+    background: radial-gradient(circle at top left, rgba(239, 68, 68, 0.04) 0%, rgba(20, 20, 25, 0.6) 100%) !important;
+}
+.dash-kpi-grid .border-red:hover {
+    border-color: rgba(239, 68, 68, 0.35) !important;
+    box-shadow: 0 10px 30px rgba(239, 68, 68, 0.08);
+}
+
+.dash-kpi-grid .border-emerald {
+    border-color: rgba(16, 185, 129, 0.18) !important;
+    background: radial-gradient(circle at top left, rgba(16, 185, 129, 0.04) 0%, rgba(20, 20, 25, 0.6) 100%) !important;
+}
+.dash-kpi-grid .border-emerald:hover {
+    border-color: rgba(16, 185, 129, 0.38) !important;
+    box-shadow: 0 10px 30px rgba(16, 185, 129, 0.08);
+}
+
+.dash-kpi-grid .border-purple {
+    border-color: rgba(168, 85, 247, 0.2) !important;
+    background: radial-gradient(circle at top left, rgba(168, 85, 247, 0.05) 0%, rgba(20, 20, 25, 0.6) 100%) !important;
+}
+.dash-kpi-grid .border-purple:hover {
+    border-color: rgba(168, 85, 247, 0.4) !important;
+    box-shadow: 0 10px 30px rgba(168, 85, 247, 0.1);
+}
+
+.dash-kpi-grid .border-cyan {
+    border-color: rgba(6, 182, 212, 0.2) !important;
+    background: radial-gradient(circle at top left, rgba(6, 182, 212, 0.05) 0%, rgba(20, 20, 25, 0.6) 100%) !important;
+}
+.dash-kpi-grid .border-cyan:hover {
+    border-color: rgba(6, 182, 212, 0.4) !important;
+    box-shadow: 0 10px 30px rgba(6, 182, 212, 0.1);
+}
+
+/* Specific glows for typography inside dashboard metrics */
+.text-cyan-glow-dash {
+    color: #22d3ee;
+    text-shadow: 0 0 15px rgba(6, 182, 212, 0.5);
+    font-size: 34px;
+    font-weight: 800;
+}
+.text-cyan-light-dash {
+    color: #a5f3fc;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.dash-kpi-grid .roi-num {
+    font-size: 34px;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.dash-kpi-grid .text-red {
+    color: #fca5a5;
+    text-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+}
+
+.dash-kpi-grid .text-emerald {
+    color: #a7f3d0;
+    text-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+}
+
+.dash-kpi-grid .text-purple-glow {
+    color: #e9d5ff;
+    text-shadow: 0 0 15px rgba(168, 85, 247, 0.5);
+}
+
+@media (max-width: 900px) {
+    .dash-kpi-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+}
+@media (max-width: 550px) {
+    .dash-kpi-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 
