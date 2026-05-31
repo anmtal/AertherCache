@@ -1239,19 +1239,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     if (heartbeatToggle) {
-        heartbeatToggle.addEventListener('change', () => {
+        heartbeatToggle.addEventListener('click', (e) => {
             const loggedInUser = localStorage.getItem('aether_user');
             const isPaid = localStorage.getItem('aether_paid') === 'true';
 
             if (!loggedInUser || !isPaid) {
-                heartbeatToggle.checked = false;
-                alert("🚫 Caching protection is deactivated. Please select a premium plan below to activate automatic keep-warm edge safeguards!");
+                e.preventDefault(); // Keep it visually OFF
+                
+                alert("🚫 Caching protection is deactivated. Please sign in and subscribe to one of our premium plans to activate automatic keep-warm safeguards!");
                 
                 const pricingSection = document.querySelector('.pricing-section') || document.getElementById('pricing-section');
                 if (pricingSection) {
                     pricingSection.scrollIntoView({ behavior: 'smooth' });
                 }
-            } else {
+            }
+        });
+
+        heartbeatToggle.addEventListener('change', () => {
+            const loggedInUser = localStorage.getItem('aether_user');
+            const isPaid = localStorage.getItem('aether_paid') === 'true';
+            if (loggedInUser && isPaid) {
                 updateSimulator();
             }
         });
