@@ -777,15 +777,20 @@ document.addEventListener('DOMContentLoaded', () => {
                                 name: name
                             })
                         });
-
                         const edgeData = await edgeRes.json();
-                        
+
                         if (edgeRes.ok && edgeData.success) {
                             console.log("Edge synced successfully!");
                             closeGatewayModal();
                             alert(`🎉 Gateway synchronized successfully!\n\nUse your dedicated endpoint URL in your application settings.`);
                             checkLoginState(); // Reload gateways and re-render
                         } else {
+                            if (edgeData.error === 'duplicate_key') {
+                                alert(edgeData.message);
+                                configSubmitBtn.disabled = false;
+                                configSubmitBtn.textContent = gateId ? 'Save Changes' : 'Vault & Synchronize Edge';
+                                return; // Hard Abort! Prevent fallback simulation save
+                            }
                             throw new Error(edgeData.message || edgeData.error || 'Failed to sync with Cloudflare Edge Worker.');
                         }
                     } else {

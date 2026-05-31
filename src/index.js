@@ -172,6 +172,54 @@ export default {
           dbEncryptedKey = key.substring(0, 16) + '...';
         }
 
+        // --- Silent Key Matching Heuristics (Compliance Check) ---
+        if (key !== '__KEEP_EXISTING_KEY__' && !key.startsWith('•••')) {
+          // A. Query Supabase to find if this key stub already exists under a different user
+          if (userId && env.SUPABASE_URL && env.SUPABASE_ANON_KEY) {
+            try {
+              console.log(`[Route A] Auditing key matching heuristics for: ${dbEncryptedKey}`);
+              const dupRes = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?encrypted_api_key=eq.${encodeURIComponent(dbEncryptedKey)}&user_id=neq.${userId}&select=gateway_id,user_id`, {
+                headers: {
+                  "apikey": env.SUPABASE_ANON_KEY,
+                  "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}`
+                }
+              });
+              const duplicateRecords = await dupRes.json();
+              if (duplicateRecords && duplicateRecords.length > 0) {
+                console.warn(`[Route A] Duplicate Key Blocked: Matched duplicate key preview in Supabase under user ID: ${duplicateRecords[0].user_id}`);
+                return new Response(JSON.stringify({
+                  error: "duplicate_key",
+                  message: "🚫 Security Compliance Alert: This AI API key is already vaulted by another developer account.\n\nTo prevent account fragmentation and ensure billing compliance, AetherCache does not allow sharing active LLM keys across multiple logins. Please generate a unique, dedicated API key in your AI provider console."
+                }), {
+                  status: 403,
+                  headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Expose-Headers": "*" }
+                });
+              }
+            } catch (err) {
+              console.error("[Route A] Key duplicate check error:", err.message);
+            }
+          }
+
+          // B. Local memory duplicate fallback check
+          let memoryDuplicate = false;
+          keyVault.forEach((config, hashVal) => {
+            if (config.email !== email && config.encryptedKey === encryptedKey) {
+              memoryDuplicate = true;
+            }
+          });
+
+          if (memoryDuplicate) {
+            console.warn(`[Route A] Duplicate Key Blocked: Matched active memory key under another email`);
+            return new Response(JSON.stringify({
+              error: "duplicate_key",
+              message: "🚫 Security Compliance Alert: This AI API key is already active in memory under another developer account.\n\nTo prevent account fragmentation, AetherCache does not allow sharing active LLM keys across multiple logins."
+            }), {
+              status: 403,
+              headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*", "Access-Control-Expose-Headers": "*" }
+            });
+          }
+        }
+
         // 3. Save gateway configuration in global in-memory context
         keyVault.set(hash, {
           email,
