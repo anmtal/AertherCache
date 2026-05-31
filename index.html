@@ -385,6 +385,25 @@
             </div>
         </section>
 
+        <!-- Enterprise Compliance Vault Banner -->
+        <section class="compliance-banner glass-card full-width-card" style="margin-bottom: 28px; background: radial-gradient(circle at top left, rgba(6, 182, 212, 0.04) 0%, rgba(20, 20, 25, 0.6) 100%); border-color: rgba(6, 182, 212, 0.15);">
+            <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+                <div style="background: rgba(6, 182, 212, 0.1); color: var(--color-cyan); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(6, 182, 212, 0.2); font-size: 24px;">
+                    🔒
+                </div>
+                <div style="flex: 1; min-width: 280px;">
+                    <h4 style="font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em; text-align: left;">Zero-Trust Data Compliance & Security</h4>
+                    <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin: 0; text-align: left;">
+                        AetherCache strictly logs anonymized metadata counts (numbers) and **never** stores, caches, or inspects your actual prompt text or model response content. This zero-retention architecture ensures perfect **GDPR, HIPAA, and SOC-2** enterprise privacy compliance.
+                    </p>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <span style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06); padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">GDPR Compliant</span>
+                    <span style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06); padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase;">HIPAA Ready</span>
+                </div>
+            </div>
+        </section>
+
         <!-- Plan Pricing Table Section -->
         <section class="pricing-section" id="pricing-section">
             <h3 class="pitch-section-title">Transparent Premium Pricing</h3>
@@ -517,36 +536,93 @@
                         <span class="live-telemetry-badge" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.2); color: #34d399;">📊 Telemetry Active</span>
                     </div>
                     <div class="card-body">
-                        <!-- Four Column Stats Row Grid -->
+                        <!-- Five Column Stats Row Grid -->
                         <div class="dash-kpi-grid">
-                            <!-- 1. Cost Without Caching -->
+                            <!-- 1. Total Cached Tokens -->
+                            <div class="roi-box border-cyan">
+                                <span class="roi-label text-cyan-light-dash">Total Cached Tokens</span>
+                                <span class="roi-num text-cyan-glow-dash" id="dash-total-tokens">0</span>
+                                <span class="roi-subtext text-cyan-light-dash">Accumulated Edge Cache Matches</span>
+                            </div>
+
+                            <!-- 2. Cost Without Caching -->
                             <div class="roi-box border-red">
                                 <span class="roi-label">Cost Without AetherCache</span>
                                 <span class="roi-num text-red" id="dash-cost-standard">$0.00</span>
                                 <span class="roi-subtext">Standard Provider Pricing</span>
                             </div>
 
-                            <!-- 2. Cost With Caching -->
+                            <!-- 3. Cost With Caching -->
                             <div class="roi-box border-emerald">
                                 <span class="roi-label">Cost With AetherCache</span>
                                 <span class="roi-num text-emerald" id="dash-cost-optimized">$0.00</span>
                                 <span class="roi-subtext">Kept 100% Warm at Edge</span>
                             </div>
 
-                            <!-- 3. Total Savings Secured -->
+                            <!-- 4. Total Savings Secured -->
                             <div class="roi-box border-purple">
                                 <span class="roi-label text-purple-light">Total Savings Secured</span>
                                 <span class="roi-num text-purple-glow" id="dash-roi-savings">$0.00</span>
                                 <span class="roi-subtext text-purple-light">Monthly Reclaimed Margin</span>
                             </div>
 
-                            <!-- 4. Average Caching Savings Rate -->
-                            <div class="roi-box border-cyan">
-                                <span class="roi-label text-cyan-light-dash">Average Caching Savings</span>
-                                <span class="roi-num text-cyan-glow-dash" id="dash-kpi-savings-rate">0%</span>
-                                <span class="roi-subtext text-cyan-light-dash">Dynamic Live Edge Savings Rate</span>
+                            <!-- 5. Average Caching Savings Rate -->
+                            <div class="roi-box border-cyan" style="border-color: rgba(168, 85, 247, 0.18);">
+                                <span class="roi-label text-purple-light">Average Caching Savings</span>
+                                <span class="roi-num text-purple-glow" id="dash-kpi-savings-rate">0%</span>
+                                <span class="roi-subtext text-purple-light">Dynamic Live Edge Savings Rate</span>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Card 4: Audit Vault (Sleek downloadable transaction receipts table) -->
+                <div class="glass-card console-card-focused full-width-card" style="margin-top: 28px;">
+                    <div class="console-card-header">
+                        <div class="console-title-group">
+                            <span class="console-badge" style="background: rgba(34, 211, 238, 0.08); border-color: rgba(34, 211, 238, 0.2); color: var(--color-cyan);">🔒 Compliant Logs</span>
+                            <h2>Audit Vault™ — Transactional Compliance Receipts</h2>
+                            <p class="console-subtitle">Programmatic audit trail of edge optimization events. Double-verifiable with your raw model provider invoices.</p>
+                        </div>
+                        <button class="add-gateway-btn" id="download-audit-btn" style="background: linear-gradient(135deg, var(--color-cyan) 0%, #0891b2 100%); box-shadow: 0 4px 15px rgba(6, 182, 212, 0.3);">
+                            <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.5" fill="none" style="margin-right: 4px;">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            Export Excel / CSV Report
+                        </button>
+                    </div>
+
+                    <!-- Security and Privacy notice -->
+                    <div class="safeguard-warning-pill" style="background: rgba(6, 182, 212, 0.04); border-color: rgba(6, 182, 212, 0.15); color: #cffafe; margin-top: 10px;">
+                        <span>🛡️ Zero-Retention Policy:</span>
+                        <p style="margin: 0; color: #a5f3fc; font-weight: normal;">
+                            AetherCache strictly logs anonymized metadata counts (numbers) and **never** stores the actual prompt text or model response content. This ensures 100% **GDPR, HIPAA, and corporate data privacy** compliance.
+                        </p>
+                    </div>
+
+                    <!-- Granular Audit receipts Table -->
+                    <div class="gateways-table-container" style="margin-top: 15px;">
+                        <table class="gateways-table">
+                            <thead>
+                                <tr>
+                                    <th>Timestamp (UTC)</th>
+                                    <th>Gateway Name</th>
+                                    <th>Active Model</th>
+                                    <th>Total Tokens</th>
+                                    <th>Cached Tokens</th>
+                                    <th>Standard Cost</th>
+                                    <th>Optimized Cost</th>
+                                    <th>Net Savings</th>
+                                </tr>
+                            </thead>
+                            <tbody id="audit-vault-tbody">
+                                <tr>
+                                    <td colspan="8" class="table-loading-row">No telemetry events recorded yet. Run requests through your Edge Gateway to generate receipts.</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 

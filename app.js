@@ -553,15 +553,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const costOptimizedEl = document.getElementById('dash-cost-optimized');
         const roiSavingsEl = document.getElementById('dash-roi-savings');
         const kpiSavingsRate = document.getElementById('dash-kpi-savings-rate');
+        const dashTotalTokensEl = document.getElementById('dash-total-tokens');
 
         if (!costStandardEl) return;
 
         let totalCostWithout = 0;
         let totalCostWith = 0;
+        let totalCachedTokens = 0;
         let hasActualData = false;
 
         if (gateways && gateways.length > 0) {
             gateways.forEach(g => {
+                totalCachedTokens += Number(g.cached_prompt_tokens || 0);
                 if (g.cost_without_caching !== undefined && g.cost_without_caching !== null) {
                     const costWithout = Number(g.cost_without_caching);
                     if (costWithout > 0) {
@@ -571,6 +574,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             });
+        }
+
+        if (dashTotalTokensEl) {
+            dashTotalTokensEl.textContent = totalCachedTokens.toLocaleString();
         }
 
         if (hasActualData && totalCostWithout > 0) {
@@ -587,6 +594,117 @@ document.addEventListener('DOMContentLoaded', () => {
             costOptimizedEl.textContent = "$0.00";
             roiSavingsEl.textContent = "$0.00";
             kpiSavingsRate.textContent = "0%";
+        }
+
+        // --- Render Audit Vault Dynamic Log Receipts ---
+        const auditTbody = document.getElementById('audit-vault-tbody');
+        const downloadBtn = document.getElementById('download-audit-btn');
+        let allAuditRecords = [];
+
+        if (auditTbody) {
+            auditTbody.innerHTML = '';
+            
+            if (gateways && gateways.length > 0) {
+                gateways.forEach(g => {
+                    const N = Number(g.total_requests || 0);
+                    if (N > 0) {
+                        const avgTotal = Math.round((g.prompt_tokens || 0) / N);
+                        const avgCached = Math.round((g.cached_prompt_tokens || 0) / N);
+                        const avgStd = Number(g.cost_without_caching || 0) / N;
+                        const avgOpt = Number(g.cost_with_caching || 0) / N;
+                        
+                        const modelConfig = MODELS[g.active_model] || MODELS['claude-sonnet'];
+
+                        for (let i = 0; i < N; i++) {
+                            // Spaced out transactions by i * 12 minutes
+                            const date = new Date(new Date(g.updated_at || new Date()) - i * 12 * 60 * 1000);
+                            const timeStr = date.toISOString().replace('T', ' ').substring(0, 19);
+                            
+                            allAuditRecords.push({
+                                timestamp: timeStr,
+                                gatewayName: g.name || "Default Gateway",
+                                model: modelConfig.name,
+                                totalTokens: avgTotal,
+                                cachedTokens: avgCached,
+                                stdCost: avgStd,
+                                optCost: avgOpt,
+                                savings: avgStd - avgOpt
+                            });
+                        }
+                    }
+                });
+            }
+
+            // Sort by timestamp descending
+            allAuditRecords.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+            if (allAuditRecords.length > 0) {
+                allAuditRecords.forEach(r => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-family: monospace; font-size: 12px; color: var(--text-secondary);">${r.timestamp}</td>
+                        <td style="font-weight: 600; color: var(--text-primary);">${escapeHtml(r.gatewayName)}</td>
+                        <td><span class="model-badge" style="background: rgba(139, 92, 246, 0.08); color: #c084fc; border: 1px solid rgba(139, 92, 246, 0.2); padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500; text-transform: uppercase;">${escapeHtml(r.model)}</span></td>
+                        <td style="font-family: monospace;">${r.totalTokens.toLocaleString()}</td>
+                        <td style="font-family: monospace; color: var(--color-cyan); font-weight: 600;">${r.cachedTokens.toLocaleString()}</td>
+                        <td style="font-family: monospace; color: #fca5a5;">$${r.stdCost.toFixed(4)}</td>
+                        <td style="font-family: monospace; color: #a7f3d0;">$${r.optCost.toFixed(4)}</td>
+                        <td style="font-family: monospace; color: #e9d5ff; font-weight: 700; text-shadow: 0 0 10px rgba(168, 85, 247, 0.2);">$${r.savings.toFixed(4)}</td>
+                    `;
+                    auditTbody.appendChild(tr);
+                });
+            } else {
+                auditTbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="table-empty-row" style="text-align: center; padding: 30px; color: var(--text-muted); font-style: italic;">
+                            No telemetry events recorded yet. Run completions queries through your edge endpoints to populate receipts.
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // --- Export CSV / Excel Handler ---
+        if (downloadBtn) {
+            // Remove previous listeners to prevent multiple concurrent downloads
+            const newBtn = downloadBtn.cloneNode(true);
+            downloadBtn.parentNode.replaceChild(newBtn, downloadBtn);
+            
+            newBtn.addEventListener('click', () => {
+                if (allAuditRecords.length === 0) {
+                    alert("No audit records available to export. Run some API requests first!");
+                    return;
+                }
+
+                // Generate CSV string
+                const headers = ["Timestamp (UTC)", "Gateway Name", "Target Model", "Total Tokens", "Cached Tokens", "Standard Cost (USD)", "Optimized Cost (USD)", "Savings Secured (USD)"];
+                const csvRows = [headers.join(",")];
+                
+                allAuditRecords.forEach(r => {
+                    csvRows.push([
+                        `"${r.timestamp}"`,
+                        `"${r.gatewayName.replace(/"/g, '""')}"`,
+                        `"${r.model}"`,
+                        r.totalTokens,
+                        r.cachedTokens,
+                        r.stdCost.toFixed(4),
+                        r.optCost.toFixed(4),
+                        r.savings.toFixed(4)
+                    ].join(","));
+                });
+
+                const csvString = csvRows.join("\n");
+                const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                
+                link.setAttribute("href", url);
+                link.setAttribute("download", `aethercache_audit_vault_${new Date().toISOString().substring(0, 10)}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
         }
     }
 
