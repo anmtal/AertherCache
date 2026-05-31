@@ -65,10 +65,13 @@ CREATE POLICY "Allow users to update their own gateways" ON public.gateways FOR 
 DROP POLICY IF EXISTS "Allow users to delete their own gateways" ON public.gateways;
 CREATE POLICY "Allow users to delete their own gateways" ON public.gateways FOR DELETE USING (auth.uid() = user_id);
 
--- 6. Migrate existing users from gateways_old to public.profiles
+-- 6. Migrate existing users from gateways_old to public.profiles (Safe check for old column)
 DO $$
 BEGIN
-  IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'gateways_old') THEN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' AND table_name = 'gateways_old' AND column_name = 'id'
+  ) THEN
     INSERT INTO public.profiles (id, email, paid, plan_tier)
     SELECT id, email, paid, CASE WHEN paid THEN 'growth' ELSE 'free' END
     FROM public.gateways_old
@@ -86,16 +89,41 @@ ON CONFLICT (id) DO NOTHING;
 DO $$
 BEGIN
   IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'gateways_old') THEN
-    INSERT INTO public.gateways (gateway_id, user_id, name, active_model, encrypted_api_key, protection_active)
-    SELECT 
-      COALESCE(gateway_id, 'ae_live_' || substring(md5(random()::text) from 1 for 6)),
-      id,
-      'Default Gateway',
-      active_model,
-      encrypted_api_key,
-      protection_active
-    FROM public.gateways_old
-    ON CONFLICT (gateway_id) DO NOTHING;
+    
+    -- Scenario A: gateways_old is in the old schema format (contains column 'id')
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_schema = 'public' AND table_name = 'gateways_old' AND column_name = 'id'
+    ) THEN
+      INSERT INTO public.gateways (gateway_id, user_id, name, active_model, encrypted_api_key, protection_active)
+      SELECT 
+        'ae_live_' || substring(md5(random()::text) from 1 for 6),
+        id,
+        'Default Gateway',
+        active_model,
+        encrypted_api_key,
+        protection_active
+      FROM public.gateways_old
+      ON CONFLICT (gateway_id) DO NOTHING;
+      
+    -- Scenario B: gateways_old is in the new schema format (contains column 'gateway_id' from a repeat run)
+    ELSIF EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_schema = 'public' AND table_name = 'gateways_old' AND column_name = 'gateway_id'
+    ) THEN
+      INSERT INTO public.gateways (
+        gateway_id, user_id, name, active_model, encrypted_api_key, protection_active,
+        total_requests, prompt_tokens, cached_prompt_tokens, cost_without_caching, cost_with_caching,
+        created_at, updated_at
+      )
+      SELECT 
+        gateway_id, user_id, name, active_model, encrypted_api_key, protection_active,
+        total_requests, prompt_tokens, cached_prompt_tokens, cost_without_caching, cost_with_caching,
+        created_at, updated_at
+      FROM public.gateways_old
+      ON CONFLICT (gateway_id) DO NOTHING;
+    END IF;
+    
   END IF;
 END $$;
 
