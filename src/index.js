@@ -326,19 +326,19 @@ export default {
 
         const stripeConfig = {
           startup: {
-            base: env.STRIPE_STARTUP_BASE_PRICE_ID || "price_1TdD06DRRNiuPDru4N97bRLc",
+            base: env.STRIPE_STARTUP_PRICE_ID || "price_1TdD06DRRNiuPDru4N97bRLc",
             metered: env.STRIPE_STARTUP_METERED_PRICE_ID || "price_1TdDBADRRNiuPDrufALyFUED"
           },
           growth: {
-            base: env.STRIPE_GROWTH_BASE_PRICE_ID || "price_1TdDHnDRRNiuPDruKSKwXh4s",
+            base: env.STRIPE_GROWTH_PRICE_ID || "price_1TdDHnDRRNiuPDruKSKwXh4s",
             metered: env.STRIPE_GROWTH_METERED_PRICE_ID || "price_1TdDIXDRRNiuPDruqyHQ2CWT"
           },
           scale: {
-            base: env.STRIPE_SCALE_BASE_PRICE_ID || "price_1TdDMRDRRNiuPDruCCR20nq1",
+            base: env.STRIPE_SCALE_PRICE_ID || "price_1TdDMRDRRNiuPDruCCR20nq1",
             metered: env.STRIPE_SCALE_METERED_PRICE_ID || "price_1TdDUiDRRNiuPDru4OwtiKMD"
           },
           enterprise: {
-            base: env.STRIPE_ENTERPRISE_BASE_PRICE_ID || "price_1TdDXwDRRNiuPDru3oWwlgBX",
+            base: env.STRIPE_ENTERPRISE_PRICE_ID || "price_1TdDXwDRRNiuPDru3oWwlgBX",
             metered: env.STRIPE_ENTERPRISE_METERED_PRICE_ID || "price_1TdDa7DRRNiuPDrunchGcMon"
           }
         };
@@ -468,8 +468,8 @@ export default {
           email = await fetchCustomerEmail(customerId, env);
           const status = subscription.status;
           paidStatus = (status === "active" || status === "trialing");
-          selectedPlan = paidStatus ? "startup" : "free"; // fallback default
-          console.log(`[Stripe Webhook] Received customer.subscription.updated. Paid: ${paidStatus}`);
+          selectedPlan = paidStatus ? (subscription.metadata?.plan_tier || "startup") : "free";
+          console.log(`[Stripe Webhook] Received customer.subscription.updated. Paid: ${paidStatus}, Plan: ${selectedPlan}`);
         }
 
         if (email && paidStatus !== null) {

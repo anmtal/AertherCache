@@ -229,9 +229,10 @@ app.post('/api/v1/stripe/webhook', async (req, res) => {
     if (event.type === 'checkout.session.completed') {
         const session = event.data.object;
         const email = session.customer_email || (session.customer_details && session.customer_details.email);
+        const selectedPlan = session.metadata?.plan || 'startup';
 
         if (email) {
-            logEvent('stripe', `Verified checkout.session.completed for ${email}`, 'success');
+            logEvent('stripe', `Verified checkout.session.completed for ${email} on ${selectedPlan.toUpperCase()} plan`, 'success');
 
             // 1. Update in-memory configuration for active pings
             keyVault.forEach((config, hash) => {
@@ -241,12 +242,12 @@ app.post('/api/v1/stripe/webhook', async (req, res) => {
                 }
             });
 
-            // 2. Proactively update secure Supabase Database row if credentials are configured
+            // 2. Proactively update secure Supabase Database profiles row if credentials are configured
             if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY) {
                 try {
-                    logEvent('stripe', `Syncing paid status directly with Supabase Database...`, 'info');
+                    logEvent('stripe', `Syncing paid status and plan_tier to Supabase profiles table...`, 'info');
                     
-                    const dbResponse = await fetch(`${process.env.SUPABASE_URL}/rest/v1/gateways?email=eq.${email}`, {
+                    const dbResponse = await fetch(`${process.env.SUPABASE_URL}/rest/v1/profiles?email=eq.${email}`, {
                         method: 'PATCH',
                         headers: {
                             'apikey': process.env.SUPABASE_ANON_KEY,
@@ -256,15 +257,16 @@ app.post('/api/v1/stripe/webhook', async (req, res) => {
                         },
                         body: JSON.stringify({
                             paid: true,
+                            plan_tier: selectedPlan,
                             updated_at: new Date()
                         })
                     });
 
                     if (dbResponse.ok) {
-                        logEvent('stripe', `Supabase DB successfully updated: set paid=true for ${email}`, 'success');
+                        logEvent('stripe', `Supabase profiles updated: paid=true, plan_tier=${selectedPlan} for ${email}`, 'success');
                     } else {
                         const errText = await dbResponse.text();
-                        logEvent('stripe', `Supabase DB update failed: ${errText}`, 'error');
+                        logEvent('stripe', `Supabase profile update failed: ${errText}`, 'error');
                     }
                 } catch (dbErr) {
                     logEvent('stripe', `Supabase DB connection error: ${dbErr.message}`, 'error');

@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id uuid REFERENCES auth.users ON DELETE CASCADE NOT NULL PRIMARY KEY,
   email text NOT NULL,
   paid boolean DEFAULT false NOT NULL,
-  plan_tier text DEFAULT 'free' NOT NULL, -- 'free', 'startup', 'growth', 'enterprise'
+  plan_tier text DEFAULT 'free' NOT NULL, -- 'free', 'startup', 'growth', 'scale', 'enterprise'
   updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
