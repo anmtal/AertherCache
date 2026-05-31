@@ -162,32 +162,53 @@ function startKeepWarmScheduler() {
     }, 10000);
 }
 
-// 4. Stripe Checkout Session API Endpoint (Zero-dependency mock fallback by default)
+// 4. Stripe Checkout Session API Endpoint (4-tier billing with metered usage)
 app.post('/api/v1/checkout/session', async (req, res) => {
     const { plan, email, urlOrigin } = req.body;
 
-    const startupPriceId = 'price_1TcTWLDq9bSyzrd3x1rxMPgL';
-    const growthPriceId = 'price_1TcTczDq9bSyzrd3gI1d6qJp'; // Mock Growth ID, will use environment vars if available
+    // Full 4-tier price lookup table (base subscription + metered usage per tier)
+    const pricingTiers = {
+        startup: {
+            base:    process.env.STRIPE_STARTUP_PRICE_ID    || 'price_1TdD06DRRNiuPDru4N97bRLc',
+            metered: process.env.STRIPE_STARTUP_METERED_PRICE_ID || 'price_1TdDBADRRNiuPDrufALyFUED'
+        },
+        growth: {
+            base:    process.env.STRIPE_GROWTH_PRICE_ID     || 'price_1TdDHnDRRNiuPDruKSKwXh4s',
+            metered: process.env.STRIPE_GROWTH_METERED_PRICE_ID  || 'price_1TdDIXDRRNiuPDruqyHQ2CWT'
+        },
+        scale: {
+            base:    process.env.STRIPE_SCALE_PRICE_ID      || 'price_1TdDMRDRRNiuPDruCCR20nq1',
+            metered: process.env.STRIPE_SCALE_METERED_PRICE_ID   || 'price_1TdDUiDRRNiuPDru4OwtiKMD'
+        },
+        enterprise: {
+            base:    process.env.STRIPE_ENTERPRISE_PRICE_ID || 'price_1TdDXwDRRNiuPDru3oWwlgBX',
+            metered: process.env.STRIPE_ENTERPRISE_METERED_PRICE_ID || 'price_1TdDa7DRRNiuPDrunchGcMon'
+        }
+    };
 
-    const priceId = plan === 'growth' 
-        ? (process.env.STRIPE_GROWTH_PRICE_ID || growthPriceId) 
-        : (process.env.STRIPE_STARTUP_PRICE_ID || startupPriceId);
+    const tier = pricingTiers[plan] || pricingTiers.startup;
 
     if (process.env.STRIPE_SECRET_KEY) {
         try {
             const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
             const session = await stripe.checkout.sessions.create({
                 payment_method_types: ['card'],
-                line_items: [{
-                    price: priceId,
-                    quantity: 1,
-                }],
+                line_items: [
+                    // Fixed-rate monthly subscription price
+                    { price: tier.base, quantity: 1 },
+                    // Metered usage price (reported via Stripe Usage Records)
+                    { price: tier.metered }
+                ],
                 mode: 'subscription',
                 customer_email: email,
-                success_url: `${urlOrigin}/?session_id={CHECKOUT_SESSION_ID}&success=true`,
+                success_url: `${urlOrigin}/?session_id={CHECKOUT_SESSION_ID}&success=true&plan=${plan}`,
                 cancel_url: `${urlOrigin}/?cancel=true`,
-                automatic_tax: { enabled: true }
+                automatic_tax: { enabled: true },
+                subscription_data: {
+                    metadata: { plan_tier: plan }
+                }
             });
+            logEvent('stripe', `Checkout session created for ${email} on ${plan.toUpperCase()} tier`, 'success');
             return res.json({ url: session.url });
         } catch (err) {
             console.error('[Stripe Local SDK Error]:', err.message);

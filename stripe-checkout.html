@@ -401,11 +401,16 @@
         const plan = urlParams.get('plan') || 'startup';
         const email = urlParams.get('email') || 'partner@company.com';
         
-        // Dynamic calculations for Tax-Inclusive Ontario HST (13.0%)
-        const startupTotal = 99.00;
-        const growthTotal = 299.00;
-        
-        const total = plan === 'growth' ? growthTotal : startupTotal;
+        // Dynamic pricing for all 4 tiers (Tax-Inclusive Ontario HST 13.0%)
+        const tierPricing = {
+            startup:    { total: 49.00,  name: 'Startup Plan',    desc: 'AetherCache Startup subscription'    },
+            growth:     { total: 99.00,  name: 'Growth Plan',     desc: 'AetherCache Growth subscription'     },
+            scale:      { total: 199.00, name: 'Scale Plan',      desc: 'AetherCache Scale subscription'      },
+            enterprise: { total: 499.00, name: 'Enterprise Plan', desc: 'AetherCache Enterprise subscription' }
+        };
+
+        const selected = tierPricing[plan] || tierPricing.startup;
+        const total = selected.total;
         const taxRate = 0.13;
         
         // Inclusive Tax calculations:
@@ -416,23 +421,13 @@
         document.getElementById('card-email').value = email;
         document.getElementById('back-link').href = window.location.origin;
 
-        if (plan === 'growth') {
-            document.getElementById('plan-name-display').textContent = 'Growth Plan';
-            document.getElementById('plan-description-display').textContent = 'AetherCache Growth subscription';
-            document.getElementById('price-display').innerHTML = '$299.00<span>/ mo</span>';
-            document.getElementById('subtotal-display').textContent = `$${subtotal.toFixed(2)}`;
-            document.getElementById('tax-display').textContent = `$${tax.toFixed(2)}`;
-            document.getElementById('total-display').textContent = `$299.00`;
-            document.getElementById('btn-text').textContent = 'Subscribe Now ($299.00)';
-        } else {
-            document.getElementById('plan-name-display').textContent = 'Startup Plan';
-            document.getElementById('plan-description-display').textContent = 'AetherCache Startup subscription';
-            document.getElementById('price-display').innerHTML = '$99.00<span>/ mo</span>';
-            document.getElementById('subtotal-display').textContent = `$${subtotal.toFixed(2)}`;
-            document.getElementById('tax-display').textContent = `$${tax.toFixed(2)}`;
-            document.getElementById('total-display').textContent = `$99.00`;
-            document.getElementById('btn-text').textContent = 'Subscribe Now ($99.00)';
-        }
+        document.getElementById('plan-name-display').textContent = selected.name;
+        document.getElementById('plan-description-display').textContent = selected.desc;
+        document.getElementById('price-display').innerHTML = `$${total.toFixed(2)}<span>/ mo</span>`;
+        document.getElementById('subtotal-display').textContent = `$${subtotal.toFixed(2)}`;
+        document.getElementById('tax-display').textContent = `$${tax.toFixed(2)}`;
+        document.getElementById('total-display').textContent = `$${total.toFixed(2)}`;
+        document.getElementById('btn-text').textContent = `Subscribe Now ($${total.toFixed(2)})`;
 
         // Auto format card number spacing
         document.getElementById('card-number').addEventListener('input', function (e) {
