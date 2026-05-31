@@ -720,11 +720,14 @@ document.addEventListener('DOMContentLoaded', () => {
             limit = 1;
             limitLabel = "1";
         } else if (planTier === 'startup') {
-            limit = 3;
-            limitLabel = "3";
+            limit = 1;
+            limitLabel = "1";
         } else if (planTier === 'growth') {
-            limit = 6;
-            limitLabel = "6";
+            limit = 2;
+            limitLabel = "2";
+        } else if (planTier === 'scale') {
+            limit = 5;
+            limitLabel = "5";
         } else if (planTier === 'enterprise') {
             limit = Infinity;
             limitLabel = "∞";
@@ -840,23 +843,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 const count = userGateways.length;
                 
                 if (planTier === 'free' && count >= 1) {
-                    alert(`🚫 Active prompt limit reached (1/1) for Free sandbox.\n\nPlease upgrade to the Startup plan to unlock up to 3 active prompt gateways!`);
+                    alert(`🚫 Active prompt limit reached (1/1) for Free sandbox.\n\nPlease upgrade to the Startup plan to unlock more active prompt gateways!`);
                     const pricingSec = document.querySelector('.pricing-section');
                     if (pricingSec) pricingSec.scrollIntoView({ behavior: 'smooth' });
                     closeGatewayModal();
                     return;
                 }
                 
-                if (planTier === 'startup' && count >= 3) {
-                    alert(`🚫 Active prompt limit reached (3/3).\n\nPlease upgrade to the Growth plan to unlock up to 6 active prompt gateways!`);
+                if (planTier === 'startup' && count >= 1) {
+                    alert(`🚫 Active prompt limit reached (1/1) for Startup plan.\n\nPlease upgrade to the Growth plan to unlock up to 2 active prompt gateways!`);
                     const pricingSec = document.querySelector('.pricing-section');
                     if (pricingSec) pricingSec.scrollIntoView({ behavior: 'smooth' });
                     closeGatewayModal();
                     return;
                 }
 
-                if (planTier === 'growth' && count >= 6) {
-                    alert(`🚫 Active prompt limit reached (6/6).\n\nPlease upgrade to the Enterprise plan (contact sales@aethercache.io) for unlimited active prompt gateways!`);
+                if (planTier === 'growth' && count >= 2) {
+                    alert(`🚫 Active prompt limit reached (2/2) for Growth plan.\n\nPlease upgrade to the Scale plan to unlock up to 5 active prompt gateways!`);
+                    const pricingSec = document.querySelector('.pricing-section');
+                    if (pricingSec) pricingSec.scrollIntoView({ behavior: 'smooth' });
+                    closeGatewayModal();
+                    return;
+                }
+
+                if (planTier === 'scale' && count >= 5) {
+                    alert(`🚫 Active prompt limit reached (5/5) for Scale plan.\n\nPlease upgrade to the Enterprise plan for unlimited active prompt gateways!`);
+                    const pricingSec = document.querySelector('.pricing-section');
+                    if (pricingSec) pricingSec.scrollIntoView({ behavior: 'smooth' });
                     closeGatewayModal();
                     return;
                 }
@@ -1298,7 +1311,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 alert('Error creating checkout session: ' + (data.error || 'Unknown error'));
                 if (btn) {
-                    btn.textContent = plan === 'growth' ? 'Upgrade to Growth' : 'Get Started';
+                    btn.textContent = plan === 'startup' ? 'Get Started' : `Upgrade to ${plan.charAt(0).toUpperCase() + plan.slice(1)}`;
                     btn.disabled = false;
                 }
             }
@@ -1317,10 +1330,6 @@ document.addEventListener('DOMContentLoaded', () => {
     pricingButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const plan = btn.getAttribute('data-plan') || 'startup';
-            if (plan === 'enterprise') {
-                window.location.href = 'mailto:sales@aethercache.io?subject=Enterprise Custom Plan Inquiry';
-                return;
-            }
 
             const loggedInUser = localStorage.getItem('aether_user');
             if (!loggedInUser) {

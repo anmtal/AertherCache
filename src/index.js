@@ -126,27 +126,37 @@ export default {
           if (planTier === "free" && existingCount >= 1) {
             return new Response(JSON.stringify({ 
               error: "limit_reached",
-              message: "Active prompt limit reached (1/1) for Free sandbox. Please upgrade to the Startup plan to unlock up to 3 active prompt gateways!" 
+              message: "Active prompt limit reached (1/1) for Free sandbox. Please upgrade to the Startup plan to unlock more active prompt gateways!" 
             }), {
               status: 403,
               headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
             });
           }
           
-          if (planTier === "startup" && existingCount >= 3) {
+          if (planTier === "startup" && existingCount >= 1) {
             return new Response(JSON.stringify({ 
               error: "limit_reached",
-              message: "Active prompt limit reached (3/3). Please upgrade to the Growth plan to unlock up to 6 active prompt gateways!" 
+              message: "Active prompt limit reached (1/1) for Startup plan. Please upgrade to the Growth plan to unlock up to 2 active prompt gateways!" 
             }), {
               status: 403,
               headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
             });
           }
 
-          if (planTier === "growth" && existingCount >= 6) {
+          if (planTier === "growth" && existingCount >= 2) {
             return new Response(JSON.stringify({ 
               error: "limit_reached",
-              message: "Active prompt limit reached (6/6). Please upgrade to the Enterprise plan (contact sales@aethercache.io) for unlimited active prompt gateways!" 
+              message: "Active prompt limit reached (2/2) for Growth plan. Please upgrade to the Scale plan to unlock up to 5 active prompt gateways!" 
+            }), {
+              status: 403,
+              headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
+            });
+          }
+
+          if (planTier === "scale" && existingCount >= 5) {
+            return new Response(JSON.stringify({ 
+              error: "limit_reached",
+              message: "Active prompt limit reached (5/5) for Scale plan. Please upgrade to the Enterprise plan for unlimited active prompt gateways!" 
             }), {
               status: 403,
               headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
@@ -314,9 +324,28 @@ export default {
           });
         }
 
-        const startupPriceId = env.STRIPE_STARTUP_PRICE_ID || "price_1TcTWLDq9bSyzrd3x1rxMPgL";
-        const growthPriceId = env.STRIPE_GROWTH_PRICE_ID || "price_1TcTczDq9bSyzrd3gI1d6qJp";
-        const priceId = plan === "growth" ? growthPriceId : startupPriceId;
+        const stripeConfig = {
+          startup: {
+            base: env.STRIPE_STARTUP_BASE_PRICE_ID || "price_1TdD06DRRNiuPDru4N97bRLc",
+            metered: env.STRIPE_STARTUP_METERED_PRICE_ID || "price_1TdDBADRRNiuPDrufALyFUED"
+          },
+          growth: {
+            base: env.STRIPE_GROWTH_BASE_PRICE_ID || "price_1TdDHnDRRNiuPDruKSKwXh4s",
+            metered: env.STRIPE_GROWTH_METERED_PRICE_ID || "price_1TdDIXDRRNiuPDruqyHQ2CWT"
+          },
+          scale: {
+            base: env.STRIPE_SCALE_BASE_PRICE_ID || "price_1TdDMRDRRNiuPDruCCR20nq1",
+            metered: env.STRIPE_SCALE_METERED_PRICE_ID || "price_1TdDUiDRRNiuPDru4OwtiKMD"
+          },
+          enterprise: {
+            base: env.STRIPE_ENTERPRISE_BASE_PRICE_ID || "price_1TdDXwDRRNiuPDru3oWwlgBX",
+            metered: env.STRIPE_ENTERPRISE_METERED_PRICE_ID || "price_1TdDa7DRRNiuPDrunchGcMon"
+          }
+        };
+
+        const activeTier = stripeConfig[plan] || stripeConfig.startup;
+        const basePriceId = activeTier.base;
+        const meteredPriceId = activeTier.metered;
 
         // Perform native edge direct API request to Stripe if secret key is present
         if (env.STRIPE_SECRET_KEY) {
@@ -329,8 +358,9 @@ export default {
 
           const params = new URLSearchParams({
             "payment_method_types[0]": "card",
-            "line_items[0][price]": priceId,
+            "line_items[0][price]": basePriceId,
             "line_items[0][quantity]": "1",
+            "line_items[1][price]": meteredPriceId, // 10% value-share metered surcharge
             "mode": "subscription",
             "customer_email": email,
             "success_url": `${urlOrigin}/?session_id={CHECKOUT_SESSION_ID}&success=true`,
