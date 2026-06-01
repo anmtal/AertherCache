@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS public.gateways (
   name text NOT NULL, -- e.g. 'Chatbot - Staging'
   active_model text DEFAULT 'claude-sonnet' NOT NULL,
   encrypted_api_key text,
+  cached_prefix text, -- AES-256-GCM encrypted system prompt for keep-warm replay
   protection_active boolean DEFAULT true NOT NULL,
   total_requests int8 DEFAULT 0 NOT NULL,
   prompt_tokens int8 DEFAULT 0 NOT NULL,

@@ -590,13 +590,18 @@ export default {
             if (profile?.paid && gw.encrypted_api_key && env.ENCRYPTION_SECRET) {
               try {
                 const rawKey = await decryptKey(gw.encrypted_api_key, env.ENCRYPTION_SECRET);
+                let cachedSystemPrompt = null;
+                if (gw.cached_prefix) {
+                  try { cachedSystemPrompt = await decryptKey(gw.cached_prefix, env.ENCRYPTION_SECRET); } catch { /* legacy or corrupt */ }
+                }
                 keyVault.set(hash, {
                   email: profile.email, model: gw.active_model, rawKey,
                   keyPreview: rawKey.substring(0, 8) + "...",
+                  cachedSystemPrompt,
                   protectionActive: gw.protection_active, lastUpdated: new Date()
                 });
                 userConfig = keyVault.get(hash);
-                console.log(`[AetherProxy 🚀] Restored successfully for ${profile.email}`);
+                console.log(`[AetherProxy 🚀] Restored for ${profile.email} (prefix: ${cachedSystemPrompt ? cachedSystemPrompt.length + ' chars' : 'none'})`);
               } catch (decryptErr) {
                 console.error(`[AetherProxy] Cannot decrypt key (legacy format?): ${decryptErr.message}`);
               }
@@ -624,6 +629,37 @@ export default {
         body._providerModel = apiModel;
 
         console.log(`[AetherProxy ⚡] ${provider.toUpperCase()} | ${modelAlias} | stream=${isStreaming} | msgs=${messages.length}`);
+
+        // ---------------------------------------------------------------
+        // Capture system prompt for keep-warm replay (the secret sauce)
+        // ---------------------------------------------------------------
+        const systemMsg = messages.find(m => m.role === "system");
+        if (systemMsg) {
+          const sysText = typeof systemMsg.content === "string" ? systemMsg.content : JSON.stringify(systemMsg.content);
+          // Only update if system prompt changed (avoid unnecessary writes)
+          if (sysText && sysText !== userConfig.cachedSystemPrompt) {
+            userConfig.cachedSystemPrompt = sysText;
+            console.log(`[AetherProxy 🧠] Captured system prompt (${sysText.length} chars) for keep-warm replay`);
+            // Async-save encrypted prefix to Supabase for cold-start recovery
+            if (env.SUPABASE_URL && env.SUPABASE_ANON_KEY && env.ENCRYPTION_SECRET) {
+              ctx.waitUntil((async () => {
+                try {
+                  const encryptedPrefix = await encryptKey(sysText, env.ENCRYPTION_SECRET);
+                  await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?gateway_id=eq.${gatewayId}`, {
+                    method: "PATCH",
+                    headers: {
+                      "apikey": env.SUPABASE_ANON_KEY,
+                      "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}`,
+                      "Content-Type": "application/json", "Prefer": "return=minimal"
+                    },
+                    body: JSON.stringify({ cached_prefix: encryptedPrefix, updated_at: new Date() })
+                  });
+                  console.log(`[AetherProxy 🧠] System prompt encrypted & saved for keep-warm`);
+                } catch (e) { console.error("[Prefix Save Error]:", e.message); }
+              })());
+            }
+          }
+        }
 
         // -------------------------------------------------------------------
         // Build provider-specific request
@@ -887,7 +923,7 @@ export default {
     // If no active vaults in memory, try to restore from Supabase
     if (keyVault.size === 0 && env.SUPABASE_URL && env.SUPABASE_ANON_KEY && env.ENCRYPTION_SECRET) {
       try {
-        const res = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?protection_active=eq.true&select=gateway_id,active_model,encrypted_api_key,profiles(email,paid)`, {
+        const res = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?protection_active=eq.true&select=gateway_id,active_model,encrypted_api_key,cached_prefix,profiles(email,paid)`, {
           headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}` }
         });
         const gateways = await res.json();
@@ -895,10 +931,15 @@ export default {
           if (!gw.profiles?.paid || !gw.encrypted_api_key) continue;
           try {
             const rawKey = await decryptKey(gw.encrypted_api_key, env.ENCRYPTION_SECRET);
+            let cachedSystemPrompt = null;
+            if (gw.cached_prefix) {
+              try { cachedSystemPrompt = await decryptKey(gw.cached_prefix, env.ENCRYPTION_SECRET); } catch { /* skip */ }
+            }
             const hash = gw.gateway_id.replace("ae_live_", "");
             keyVault.set(hash, {
               email: gw.profiles.email, model: gw.active_model, rawKey,
               keyPreview: rawKey.substring(0, 8) + "...",
+              cachedSystemPrompt,
               protectionActive: true, lastUpdated: new Date()
             });
           } catch { /* skip un-decryptable */ }
@@ -930,26 +971,33 @@ export default {
 
       try {
         let pingUrl, pingHeaders, pingBody;
+        const sysPrompt = config.cachedSystemPrompt || "AetherCache keep-warm ping.";
+        const hasRealPrefix = !!config.cachedSystemPrompt;
 
         if (providerConfig.provider === "anthropic") {
           pingUrl = providerConfig.endpoint;
           pingHeaders = { "x-api-key": config.rawKey, "anthropic-version": "2023-06-01", "content-type": "application/json" };
           pingBody = JSON.stringify({
             model: providerConfig.apiModel, max_tokens: 1, stream: false,
-            system: [{ type: "text", text: "AetherCache keep-warm ping.", cache_control: { type: "ephemeral" } }],
-            messages: [{ role: "user", content: "ping" }]
+            system: [{ type: "text", text: sysPrompt, cache_control: { type: "ephemeral" } }],
+            messages: [{ role: "user", content: "keepalive" }]
           });
         } else if (providerConfig.provider === "openai" || providerConfig.provider === "deepseek") {
           pingUrl = providerConfig.endpoint;
           pingHeaders = { "Authorization": `Bearer ${config.rawKey}`, "Content-Type": "application/json" };
           pingBody = JSON.stringify({
             model: providerConfig.apiModel, max_tokens: 1, stream: false,
-            messages: [{ role: "user", content: "ping" }]
+            messages: [
+              ...(hasRealPrefix ? [{ role: "system", content: sysPrompt }] : []),
+              { role: "user", content: "keepalive" }
+            ]
           });
         } else if (providerConfig.provider === "google") {
           pingUrl = `${providerConfig.endpoint}/models/${providerConfig.apiModel}:generateContent?key=${config.rawKey}`;
           pingHeaders = { "Content-Type": "application/json" };
-          pingBody = JSON.stringify({ contents: [{ role: "user", parts: [{ text: "ping" }] }], generationConfig: { maxOutputTokens: 1 } });
+          const geminiBody = { contents: [{ role: "user", parts: [{ text: "keepalive" }] }], generationConfig: { maxOutputTokens: 1 } };
+          if (hasRealPrefix) geminiBody.systemInstruction = { parts: [{ text: sysPrompt }] };
+          pingBody = JSON.stringify(geminiBody);
         } else {
           continue;
         }
@@ -957,7 +1005,7 @@ export default {
         const pingRes = await fetch(pingUrl, { method: "POST", headers: pingHeaders, body: pingBody });
 
         if (pingRes.ok) {
-          console.log(`[AetherPing 🟢] Heartbeat OK for ${config.keyPreview} (${config.model})`);
+          console.log(`[AetherPing 🟢] Heartbeat OK for ${config.keyPreview} (${config.model}) | prefix=${hasRealPrefix ? sysPrompt.length + 'chars' : 'generic'}`);
         } else {
           const errText = await pingRes.text();
           console.error(`[AetherPing 🔴] Failed for ${config.keyPreview}: ${pingRes.status} ${errText.substring(0, 100)}`);
