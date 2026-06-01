@@ -68,11 +68,10 @@ app.post('/api/v1/key/vault', (req, res) => {
     });
 });
 
-// 2. Mock Edge-Proxy Streaming Endpoint — Prompt Caching Interceptor & SSE Stream
+// 2. Proxy Route — In production, proxying happens at the Cloudflare Edge Worker.
+// This local endpoint returns a helpful redirect for development.
 app.post('/api/v1/chat/completions/:gatewayId', (req, res) => {
     const { gatewayId } = req.params;
-    const { messages, model: requestModel, stream } = req.body;
-
     const hash = gatewayId.replace('ae_live_', '');
     const userConfig = keyVault.get(hash);
 
@@ -80,55 +79,30 @@ app.post('/api/v1/chat/completions/:gatewayId', (req, res) => {
         return res.status(401).json({ error: 'Gateway ID inactive or unauthorized key vault.' });
     }
 
-    logEvent('proxy', `Incoming query intercepted from client SDK on gateway: ${gatewayId}`);
-    logEvent('proxy', `In-memory decryption: Loaded encrypted payload -> Decrypted raw Bearer token strictly in RAM.`, 'vault');
+    logEvent('proxy', `Proxy request received for ${gatewayId}. Real proxying runs on Cloudflare Edge Worker.`);
+    logEvent('proxy', `Production endpoint: https://aethercache-gateway.arthercache.workers.dev/api/v1/chat/completions/${gatewayId}`);
 
-    // Prompt Caching Refactoring Interceptor Simulation
-    logEvent('proxy', `Scanning prompt JSON context. Found static prefix context size: 1042 tokens.`);
-    logEvent('proxy', `Refactoring message array structure to insert provider cache controllers...`);
-    
-    const refactoredPrompt = {
-        model: requestModel || userConfig.model,
-        messages: [
-            ...messages.slice(0, -1),
-            { ...messages[messages.length - 1], cache_control: { type: "ephemeral" } }
-        ]
-    };
-    
-    logEvent('proxy', `Refactored payload successfully sent to provider. Cache control flag injected!`);
-
-    // Stream Mock Text Responses back using Server-Sent Events (SSE)
+    // Stream a helpful message back to the client
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    const mockTokens = [
-        "Aether", "Cache", " has", " successfully", " intercepted", " your", " API", " call", 
-        " at", " the", " edge", "!", " Prompt", " refactoring", " was", " automatically", " applied", 
-        " to", " trigger", " prompt", " caching", " discounts", " from", " your", " model", 
-        " provider.", " You", " saved", " 75%", " on", " input", " processing", " cost", 
-        " with", " zero", " latency", " overhead."
-    ];
-
-    let tokenIndex = 0;
+    const msg = `AetherCache local dev server received your request. In production, point your SDK to the Cloudflare edge URL: https://aethercache-gateway.arthercache.workers.dev`;
+    const chunks = msg.split(' ');
+    let i = 0;
     const interval = setInterval(() => {
-        if (tokenIndex < mockTokens.length) {
-            const data = JSON.stringify({
-                choices: [{ delta: { content: mockTokens[tokenIndex] } }]
-            });
+        if (i < chunks.length) {
+            const data = JSON.stringify({ choices: [{ delta: { content: (i > 0 ? ' ' : '') + chunks[i] } }] });
             res.write(`data: ${data}\n\n`);
-            tokenIndex++;
+            i++;
         } else {
             clearInterval(interval);
             res.write('data: [DONE]\n\n');
             res.end();
-            logEvent('proxy', `Edge stream delivery completed with 0ms buffering overhead. Stream closed.`, 'success');
         }
-    }, 60);
+    }, 50);
 
-    req.on('close', () => {
-        clearInterval(interval);
-    });
+    req.on('close', () => clearInterval(interval));
 });
 
 // 3. Keep-Warm Engine Scheduler (AetherPing Heartbeats)

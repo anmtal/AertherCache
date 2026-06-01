@@ -60,7 +60,9 @@ const secretsToBind = [
     'STRIPE_ENTERPRISE_PRICE_ID',
     'STRIPE_ENTERPRISE_METERED_PRICE_ID',
     // Webhook
-    'STRIPE_WEBHOOK_SECRET'
+    'STRIPE_WEBHOOK_SECRET',
+    // Encryption
+    'ENCRYPTION_SECRET'
 ];
 
 console.log(`Parsed .env file. Found ${Object.keys(env).length} variables.\n`);
