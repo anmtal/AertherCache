@@ -362,7 +362,12 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (e) {}
         }
 
-        const profile = await DBService.getUserProfile();
+        let profile = null;
+        try {
+            profile = await DBService.getUserProfile();
+        } catch (e) {
+            console.error("Supabase user profile loading failed, using local/fallback details:", e);
+        }
 
         if (profile) {
             userProfileState = profile;
@@ -373,10 +378,43 @@ document.addEventListener('DOMContentLoaded', () => {
             loginBtn.style.display = 'none';
             userProfile.style.display = 'flex';
             userEmailText.textContent = profile.email;
-            document.querySelector('.user-avatar').textContent = profile.email.charAt(0).toUpperCase();
+            
+            const avatarEl = document.querySelector('.user-avatar');
+            if (avatarEl) {
+                avatarEl.textContent = profile.email.charAt(0).toUpperCase();
+            }
 
-            // Fetch user gateways
-            userGateways = await DBService.fetchGateways(profile.id);
+            // Fetch user gateways with resilient error fallback to handle missing migrations
+            try {
+                userGateways = await DBService.fetchGateways(profile.id);
+            } catch (gatewaysError) {
+                console.error("Failed to query gateways with cached prompts. Mismatch or missing migration?", gatewaysError);
+                
+                // Fallback attempt: query gateways without cached_prompts join
+                if (DBService.isSupabase()) {
+                    try {
+                        console.log("Attempting fallback query to gateways without cached_prompts join...");
+                        const { data, error } = await supabase
+                            .from('gateways')
+                            .select('*')
+                            .eq('user_id', profile.id);
+                        if (error) throw error;
+                        
+                        // Map them with empty cached_prompts
+                        userGateways = (data || []).map(g => ({ ...g, cached_prompts: [] }));
+                    } catch (fallbackError) {
+                        console.error("Alternative fallback fetch of gateways failed too:", fallbackError);
+                        userGateways = [];
+                    }
+                } else {
+                    userGateways = [];
+                }
+
+                // Show a helpful warning on console/UI
+                console.warn(
+                    "Database schema mismatch detected. If you haven't run the `add_multiple_cached_prompts.sql` migration in your Supabase project, please run it in the SQL Editor to fix database queries."
+                );
+            }
 
             const isPaid = !!profile.paid;
             const planTier = profile.plan_tier || 'free';
