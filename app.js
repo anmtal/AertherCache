@@ -221,12 +221,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.setItem('aether_paid', isPaid ? 'true' : 'false');
                 localStorage.setItem('aether_plan_tier', planTier);
 
-                // 3. Fetch all gateways associated with this user
+                // 3. Fetch all gateways associated with this user (joined with cached_prompts)
                 let gateways = [];
                 try {
                     const { data: dbGateways, error: gatewaysError } = await supabase
                         .from('gateways')
-                        .select('*')
+                        .select('*, cached_prompts(*)')
                         .eq('user_id', session.user.id);
                     if (!gatewaysError && dbGateways) {
                         gateways = dbGateways;
@@ -304,7 +304,33 @@ document.addEventListener('DOMContentLoaded', () => {
                         active_model: "claude-sonnet",
                         protection_active: true,
                         encrypted_api_key: "••••••••••••••••••••",
-                        created_at: new Date().toISOString()
+                        created_at: new Date().toISOString(),
+                        cached_prompts: [
+                            {
+                                prompt_hash: "ae_sha256_7f8a9b",
+                                encrypted_prompt: "aes256_gcm_sys_prompt_1",
+                                total_requests: 420,
+                                prompt_tokens: 2100000,
+                                cached_prompt_tokens: 1575000,
+                                cost_without_caching: 6.30,
+                                cost_with_caching: 1.575,
+                                last_used_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+                                created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+                                mock_decrypted: "You are a helpful customer support agent for AetherCache Inc. Be professional, direct, and highlight our caching optimizations."
+                            },
+                            {
+                                prompt_hash: "ae_sha256_1c2d3e",
+                                encrypted_prompt: "aes256_gcm_sys_prompt_2",
+                                total_requests: 85,
+                                prompt_tokens: 850000,
+                                cached_prompt_tokens: 637500,
+                                cost_without_caching: 2.55,
+                                cost_with_caching: 0.6375,
+                                last_used_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+                                created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+                                mock_decrypted: "You are a legal document analyzer specialized in SaaS terms of service. Extract and cross-examine liability and compliance sections."
+                            }
+                        ]
                     }
                 ];
                 localStorage.setItem('aether_mock_gateways', JSON.stringify(userGateways));
@@ -498,6 +524,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tdActions.className = 'actions-cell';
             tdActions.innerHTML = `
                 <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                    <button class="view-caches-btn" data-id="${gate.gateway_id}" style="background: rgba(139, 92, 246, 0.08); border: 1px solid rgba(139, 92, 246, 0.2); color: #c084fc; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; transition: var(--transition-smooth);">Caches (${gate.cached_prompts ? gate.cached_prompts.length : 0})</button>
                     <button class="edit-gate-btn" data-id="${gate.gateway_id}" style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--text-primary); padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; transition: var(--transition-smooth);">Edit</button>
                     <button class="delete-gate-btn" data-id="${gate.gateway_id}" style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.18); color: #fca5a5; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; transition: var(--transition-smooth);">Delete</button>
                 </div>
@@ -505,6 +532,100 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.appendChild(tdActions);
             
             gatewaysListTbody.appendChild(tr);
+
+            // Render details sub-row
+            const trDetails = document.createElement('tr');
+            trDetails.id = `details-${gate.gateway_id}`;
+            trDetails.style.display = 'none';
+            trDetails.className = 'gateway-details-row';
+            
+            let promptsHtml = '';
+            if (gate.cached_prompts && gate.cached_prompts.length > 0) {
+                promptsHtml = `
+                    <div style="padding: 16px; background: rgba(0, 0, 0, 0.2); border-radius: 12px; margin: 8px 0; border: 1px solid rgba(255, 255, 255, 0.05); text-align: left;">
+                        <h5 style="margin: 0 0 12px 0; font-size: 12px; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px; font-weight: 700;">
+                            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #c084fc;"></span>
+                            Active Prompt Caches (${gate.cached_prompts.length})
+                        </h5>
+                        <div style="overflow-x: auto;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.08); color: var(--text-secondary); font-weight: 600;">
+                                        <th style="padding: 8px 4px;">Prompt Snippet</th>
+                                        <th style="padding: 8px 4px;">Hash ID</th>
+                                        <th style="padding: 8px 4px;">Keepalive Status</th>
+                                        <th style="padding: 8px 4px; text-align: right;">Requests</th>
+                                        <th style="padding: 8px 4px; text-align: right;">Savings Rate</th>
+                                        <th style="padding: 8px 4px; text-align: right;">Total Saved</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                `;
+                
+                gate.cached_prompts.forEach(p => {
+                    const idleTime = Date.now() - new Date(p.last_used_at).getTime();
+                    const isClaude = gate.active_model.startsWith('claude');
+                    const cooldownThreshold = isClaude ? 3.5 * 60 * 1000 : 7.5 * 60 * 1000;
+                    
+                    let statusBadge = '';
+                    if (!gate.protection_active) {
+                        statusBadge = `<span style="color: #ef4444; font-weight: 600;">● Inactive (Cold)</span>`;
+                    } else if (idleTime <= cooldownThreshold) {
+                        statusBadge = `<span style="color: #10b981; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;"><span class="pulse-dot" style="width: 6px; height: 6px; background-color: #10b981; border-radius: 50%;"></span>Warm (Active Client)</span>`;
+                    } else if (idleTime < 24 * 60 * 60 * 1000) {
+                        statusBadge = `<span style="color: #06b6d4; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;"><span class="pulse-dot" style="width: 6px; height: 6px; background-color: #06b6d4; border-radius: 50%;"></span>Sustained (Warm)</span>`;
+                    } else {
+                        statusBadge = `<span style="color: var(--text-muted); font-weight: 500;">● Idle (Cooled down)</span>`;
+                    }
+                    
+                    const savedCost = Number(p.cost_without_caching || 0) - Number(p.cost_with_caching || 0);
+                    const pctSaved = p.cost_without_caching > 0 ? Math.round((savedCost / p.cost_without_caching) * 100) : 0;
+                    
+                    const snippetText = p.mock_decrypted || `Encrypted System Prompt (${p.prompt_hash.substring(0, 10)}...)`;
+                    const cleanSnippet = escapeHtml(snippetText.substring(0, 60)) + (snippetText.length > 60 ? '...' : '');
+                    
+                    promptsHtml += `
+                        <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.04); color: var(--text-secondary);">
+                            <td style="padding: 10px 4px; font-style: italic; color: var(--text-primary);" title="${escapeHtml(snippetText)}">"${cleanSnippet}"</td>
+                            <td style="padding: 10px 4px; font-family: monospace; font-size: 11px;">${p.prompt_hash.substring(0, 10)}</td>
+                            <td style="padding: 10px 4px;">${statusBadge}</td>
+                            <td style="padding: 10px 4px; text-align: right; font-family: monospace;">${p.total_requests || 0}</td>
+                            <td style="padding: 10px 4px; text-align: right; color: #06b6d4; font-weight: 600; font-family: monospace;">${pctSaved}%</td>
+                            <td style="padding: 10px 4px; text-align: right; color: #10b981; font-weight: 600; font-family: monospace;">$${savedCost.toFixed(4)}</td>
+                        </tr>
+                    `;
+                });
+                
+                promptsHtml += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            } else {
+                promptsHtml = `
+                    <div style="padding: 20px; text-align: center; color: var(--text-muted); background: rgba(0, 0, 0, 0.2); border-radius: 12px; margin: 8px 0; border: 1px solid rgba(255, 255, 255, 0.05);">
+                        <p style="margin: 0; font-size: 13px;">No active prompt caches detected yet on this gateway. Point your SDK here and make a call with a system prompt to initiate caching!</p>
+                    </div>
+                `;
+            }
+            
+            trDetails.innerHTML = `<td colspan="5" style="padding: 0 16px 16px 16px;">${promptsHtml}</td>`;
+            gatewaysListTbody.appendChild(trDetails);
+        });
+
+        // Add event listeners for view caches buttons
+        gatewaysListTbody.querySelectorAll('.view-caches-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const gateId = btn.getAttribute('data-id');
+                const detailsRow = document.getElementById(`details-${gateId}`);
+                if (detailsRow) {
+                    const isHidden = detailsRow.style.display === 'none';
+                    detailsRow.style.display = isHidden ? 'table-row' : 'none';
+                    btn.textContent = isHidden ? 'Hide Caches' : `Caches (${gateways.find(g => g.gateway_id === gateId)?.cached_prompts?.length || 0})`;
+                    btn.style.backgroundColor = isHidden ? 'rgba(255, 255, 255, 0.08)' : 'rgba(139, 92, 246, 0.08)';
+                }
+            });
         });
 
         // Add event listeners for copy buttons

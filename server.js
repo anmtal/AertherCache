@@ -6,6 +6,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -50,6 +51,7 @@ app.post('/api/v1/key/vault', (req, res) => {
         email,
         model,
         encryptedKey,
+        cachedPrompts: new Map(),
         protectionActive: !!protectionActive,
         lastRefactored: new Date()
     });
@@ -77,6 +79,20 @@ app.post('/api/v1/chat/completions/:gatewayId', (req, res) => {
 
     if (!userConfig) {
         return res.status(401).json({ error: 'Gateway ID inactive or unauthorized key vault.' });
+    }
+
+    // Capture system prompt locally in memory to simulate multi-prompt edge worker logs
+    const systemMsg = req.body?.messages?.find(m => m.role === 'system');
+    if (systemMsg) {
+        const sysText = typeof systemMsg.content === 'string' ? systemMsg.content : JSON.stringify(systemMsg.content);
+        const promptHash = crypto.createHash('sha256').update(sysText).digest('hex');
+        if (!userConfig.cachedPrompts) userConfig.cachedPrompts = new Map();
+        if (!userConfig.cachedPrompts.has(promptHash)) {
+            userConfig.cachedPrompts.set(promptHash, { decrypted: sysText, lastUsedAt: new Date() });
+            logEvent('vault', `Mocked Captured system prompt hash ${promptHash.substring(0, 8)} locally (Total: ${userConfig.cachedPrompts.size})`, 'vault');
+        } else {
+            userConfig.cachedPrompts.get(promptHash).lastUsedAt = new Date();
+        }
     }
 
     logEvent('proxy', `Proxy request received for ${gatewayId}. Real proxying runs on Cloudflare Edge Worker.`);
@@ -114,24 +130,58 @@ function startKeepWarmScheduler() {
         if (keyVault.size === 0) return;
 
         keyVault.forEach((config, hash) => {
-            if (config.protectionActive) {
-                logEvent(
-                    'ping', 
-                    `Sustaining warm cache status for ${config.email} (${config.model}): Dispatching background dummy prefix keep-warm heartbeat...`, 
-                    'success'
-                );
-                logEvent(
-                    'ping', 
-                    `Anthropic edge node cache locked at 100% warm. Cache eviction prevented successfully.`, 
-                    'success'
-                );
-            } else {
+            if (!config.protectionActive) {
                 logEvent(
                     'ping', 
                     `AetherPing suspended for ${config.email} (${config.model}): Heartbeats paused. Cache cooled down to 0% cold.`, 
                     'error'
                 );
+                return;
             }
+
+            if (!config.cachedPrompts || config.cachedPrompts.size === 0) {
+                logEvent(
+                    'ping', 
+                    `Sustaining warm cache status for ${config.email} (${config.model}): No active system prompts captured yet. Sending generic keeper ping...`, 
+                    'success'
+                );
+                return;
+            }
+
+            config.cachedPrompts.forEach((promptInfo, promptHash) => {
+                const idleTime = Date.now() - new Date(promptInfo.lastUsedAt).getTime();
+                
+                // Simulate 24h idle expiry (simulated as 2 minutes idle time for fast local demo!)
+                if (idleTime > 120 * 1000) {
+                  logEvent(
+                      'ping',
+                      `Skipping keep-warm ping for ${config.email} prompt ${promptHash.substring(0, 8)}: idle for over 2 minutes (cooled down locally).`,
+                      'info'
+                  );
+                  return;
+                }
+
+                // Simulate cooldown check (simulated as 15 seconds locally!)
+                if (idleTime <= 15 * 1000) {
+                  logEvent(
+                      'ping',
+                      `Skipping keep-warm ping for ${config.email} prompt ${promptHash.substring(0, 8)}: active client traffic detected inside local cooldown window (${Math.round(idleTime / 1000)}s ago)`,
+                      'success'
+                  );
+                  return;
+                }
+
+                logEvent(
+                    'ping', 
+                    `Sustaining warm cache status for ${config.email} (${config.model}) | Prompt: ${promptHash.substring(0, 8)}: Dispatching keep-warm heartbeat...`, 
+                    'success'
+                );
+                logEvent(
+                    'ping', 
+                    `Anthropic edge node cache locked at 100% warm for prompt ${promptHash.substring(0, 8)}. Cache eviction prevented successfully.`, 
+                    'success'
+                );
+            });
         });
     }, 10000);
 }

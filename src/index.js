@@ -28,6 +28,13 @@ async function decryptKey(base64Blob, secret) {
   return new TextDecoder().decode(plaintext);
 }
 
+async function getPromptHash(text) {
+  const msgUint8 = new TextEncoder().encode(text);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 // ============================================================================
 // Section 2: Provider Configuration & Pricing
 // ============================================================================
@@ -85,16 +92,45 @@ function buildAnthropicPayload(clientMessages, body) {
     cache_control: { type: "ephemeral" }
   }] : undefined;
 
-  // For multi-turn conversations (>2 messages), cache the conversation prefix
-  // by adding cache_control to the second-to-last message
-  if (messages.length >= 3) {
-    const prefixIdx = messages.length - 2;
-    const prefixMsg = messages[prefixIdx];
-    if (typeof prefixMsg.content === "string") {
-      messages[prefixIdx] = {
-        role: prefixMsg.role,
-        content: [{ type: "text", text: prefixMsg.content, cache_control: { type: "ephemeral" } }]
-      };
+  // Optimize multi-turn conversation caching using a sliding-window strategy.
+  // Anthropic allows up to 4 cache_control breakpoints in total (1 on system prompt, 3 in messages list).
+  if (messages.length > 0) {
+    const indices = [];
+
+    // 1. Always cache the second-to-last message (most critical for immediate next turn)
+    if (messages.length >= 2) {
+      indices.push(messages.length - 2);
+    } else {
+      indices.push(messages.length - 1);
+    }
+
+    // 2. If the conversation is longer, cache a middle message (breakpoint 3)
+    if (messages.length >= 6) {
+      indices.push(Math.floor(messages.length / 2));
+    }
+
+    // 3. If the conversation is even longer, cache a message at 1/4 (breakpoint 4)
+    if (messages.length >= 10) {
+      indices.push(Math.floor(messages.length / 4));
+    }
+
+    const uniqueIndices = [...new Set(indices)].sort((a, b) => a - b);
+
+    for (const idx of uniqueIndices) {
+      const msg = messages[idx];
+      if (msg) {
+        if (typeof msg.content === "string") {
+          messages[idx] = {
+            role: msg.role,
+            content: [{ type: "text", text: msg.content, cache_control: { type: "ephemeral" } }]
+          };
+        } else if (Array.isArray(msg.content)) {
+          const lastBlock = msg.content[msg.content.length - 1];
+          if (lastBlock && typeof lastBlock === "object") {
+            lastBlock.cache_control = { type: "ephemeral" };
+          }
+        }
+      }
     }
   }
 
@@ -532,6 +568,7 @@ export default {
         keyVault.set(hash, {
           email, model, rawKey,
           keyPreview: rawKey ? rawKey.substring(0, 8) + "..." : "n/a",
+          cachedPrompts: new Map(),
           protectionActive: !!protectionActive && isPaid,
           lastUpdated: new Date()
         });
@@ -580,7 +617,8 @@ export default {
       if (!userConfig && env.SUPABASE_URL && env.SUPABASE_ANON_KEY) {
         try {
           console.log(`[AetherProxy 🚀 Cold Start] Restoring for gateway: ${gatewayId}`);
-          const dbRes = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?gateway_id=eq.${gatewayId}&select=*,profiles(*)`, {
+          // Query gateways joined with cached_prompts
+          const dbRes = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?gateway_id=eq.${gatewayId}&select=*,profiles(*),cached_prompts(prompt_hash,encrypted_prompt,last_used_at)`, {
             headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}` }
           });
           const records = await dbRes.json();
@@ -590,18 +628,35 @@ export default {
             if (profile?.paid && gw.encrypted_api_key && env.ENCRYPTION_SECRET) {
               try {
                 const rawKey = await decryptKey(gw.encrypted_api_key, env.ENCRYPTION_SECRET);
-                let cachedSystemPrompt = null;
-                if (gw.cached_prefix) {
-                  try { cachedSystemPrompt = await decryptKey(gw.cached_prefix, env.ENCRYPTION_SECRET); } catch { /* legacy or corrupt */ }
+                
+                // Load all decrypted cached prompts into a map
+                const cachedPrompts = new Map();
+                for (const p of gw.cached_prompts || []) {
+                  try {
+                    const decrypted = await decryptKey(p.encrypted_prompt, env.ENCRYPTION_SECRET);
+                    cachedPrompts.set(p.prompt_hash, { decrypted, lastUsedAt: p.last_used_at });
+                  } catch (pErr) {
+                    console.error(`[AetherProxy] Failed to decrypt prompt: ${pErr.message}`);
+                  }
                 }
+                
+                // Fallback for legacy cached_prefix column
+                if (cachedPrompts.size === 0 && gw.cached_prefix) {
+                  try {
+                    const decrypted = await decryptKey(gw.cached_prefix, env.ENCRYPTION_SECRET);
+                    const promptHash = await getPromptHash(decrypted);
+                    cachedPrompts.set(promptHash, { decrypted, lastUsedAt: gw.updated_at });
+                  } catch { /* ignore */ }
+                }
+                
                 keyVault.set(hash, {
                   email: profile.email, model: gw.active_model, rawKey,
                   keyPreview: rawKey.substring(0, 8) + "...",
-                  cachedSystemPrompt,
+                  cachedPrompts,
                   protectionActive: gw.protection_active, lastUpdated: new Date()
                 });
                 userConfig = keyVault.get(hash);
-                console.log(`[AetherProxy 🚀] Restored for ${profile.email} (prefix: ${cachedSystemPrompt ? cachedSystemPrompt.length + ' chars' : 'none'})`);
+                console.log(`[AetherProxy 🚀] Restored for ${profile.email} (${cachedPrompts.size} prompts loaded)`);
               } catch (decryptErr) {
                 console.error(`[AetherProxy] Cannot decrypt key (legacy format?): ${decryptErr.message}`);
               }
@@ -613,6 +668,9 @@ export default {
       if (!userConfig || !userConfig.rawKey) {
         return jsonResponse({ error: "Unauthorized gateway or key unavailable. Please re-vault your API key." }, 401);
       }
+
+      let activePromptHash = null;
+      let activeEncryptedPrompt = null;
 
       try {
         const body = await request.json();
@@ -636,27 +694,24 @@ export default {
         const systemMsg = messages.find(m => m.role === "system");
         if (systemMsg) {
           const sysText = typeof systemMsg.content === "string" ? systemMsg.content : JSON.stringify(systemMsg.content);
-          // Only update if system prompt changed (avoid unnecessary writes)
-          if (sysText && sysText !== userConfig.cachedSystemPrompt) {
-            userConfig.cachedSystemPrompt = sysText;
-            console.log(`[AetherProxy 🧠] Captured system prompt (${sysText.length} chars) for keep-warm replay`);
-            // Async-save encrypted prefix to Supabase for cold-start recovery
-            if (env.SUPABASE_URL && env.SUPABASE_ANON_KEY && env.ENCRYPTION_SECRET) {
-              ctx.waitUntil((async () => {
-                try {
-                  const encryptedPrefix = await encryptKey(sysText, env.ENCRYPTION_SECRET);
-                  await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?gateway_id=eq.${gatewayId}`, {
-                    method: "PATCH",
-                    headers: {
-                      "apikey": env.SUPABASE_ANON_KEY,
-                      "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}`,
-                      "Content-Type": "application/json", "Prefer": "return=minimal"
-                    },
-                    body: JSON.stringify({ cached_prefix: encryptedPrefix, updated_at: new Date() })
-                  });
-                  console.log(`[AetherProxy 🧠] System prompt encrypted & saved for keep-warm`);
-                } catch (e) { console.error("[Prefix Save Error]:", e.message); }
-              })());
+          if (sysText) {
+            activePromptHash = await getPromptHash(sysText);
+            if (!userConfig.cachedPrompts) userConfig.cachedPrompts = new Map();
+            
+            // Update memory if not present
+            if (!userConfig.cachedPrompts.has(activePromptHash)) {
+              userConfig.cachedPrompts.set(activePromptHash, { decrypted: sysText, lastUsedAt: new Date().toISOString() });
+              console.log(`[AetherProxy 🧠] Captured new system prompt hash ${activePromptHash.substring(0, 8)} (${sysText.length} chars)`);
+            } else {
+              // Update lastUsedAt in memory
+              userConfig.cachedPrompts.get(activePromptHash).lastUsedAt = new Date().toISOString();
+            }
+            
+            // Always prepare encrypted prompt for db update
+            if (env.ENCRYPTION_SECRET) {
+              try {
+                activeEncryptedPrompt = await encryptKey(sysText, env.ENCRYPTION_SECRET);
+              } catch (e) { console.error("[Encryption Error]:", e.message); }
             }
           }
         }
@@ -733,7 +788,7 @@ export default {
               cache_read_tokens: rawUsage.prompt_tokens_details?.cached_tokens || rawUsage.cache_read_input_tokens || 0,
               cache_creation_tokens: rawUsage.cache_creation_input_tokens || 0,
               completion_tokens: rawUsage.completion_tokens || rawUsage.output_tokens || 0
-            }));
+            }, activePromptHash, activeEncryptedPrompt));
           }
           delete normalized._raw_usage;
           return jsonResponse(normalized);
@@ -787,7 +842,7 @@ export default {
 
           // Sync real telemetry to database
           if (accumulatedUsage) {
-            await syncTelemetry(env, gatewayId, modelAlias, accumulatedUsage);
+            await syncTelemetry(env, gatewayId, modelAlias, accumulatedUsage, activePromptHash, activeEncryptedPrompt);
           }
           console.log(`[AetherProxy 🟢] Stream completed for ${gatewayId}`);
         })());
@@ -917,13 +972,35 @@ export default {
   // ========================================================================
   // Cron: Real Keep-Warm Heartbeats
   // ========================================================================
+  // ========================================================================
+  // Cron: Real Keep-Warm Heartbeats & Pruning
+  // ========================================================================
   async scheduled(event, env, ctx) {
     console.log(`[AetherPing ⏰] Cron triggered. Active vaults: ${keyVault.size}`);
 
-    // If no active vaults in memory, try to restore from Supabase
+    // 1. Housekeeping: Prune dead cached prompts older than 7 days from Supabase
+    if (env.SUPABASE_URL && env.SUPABASE_ANON_KEY) {
+      try {
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        const pruneRes = await fetch(`${env.SUPABASE_URL}/rest/v1/cached_prompts?last_used_at=lt.${sevenDaysAgo}`, {
+          method: "DELETE",
+          headers: {
+            "apikey": env.SUPABASE_ANON_KEY,
+            "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}`
+          }
+        });
+        if (pruneRes.ok) {
+          console.log(`[AetherPing ⏰] Successfully pruned inactive cached prompts older than 7 days`);
+        }
+      } catch (pruneErr) {
+        console.error("[AetherPing Prune Error]:", pruneErr.message);
+      }
+    }
+
+    // 2. If no active vaults in memory, try to restore from Supabase (with joined prompts)
     if (keyVault.size === 0 && env.SUPABASE_URL && env.SUPABASE_ANON_KEY && env.ENCRYPTION_SECRET) {
       try {
-        const res = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?protection_active=eq.true&select=gateway_id,active_model,encrypted_api_key,cached_prefix,profiles(email,paid)`, {
+        const res = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?protection_active=eq.true&select=gateway_id,active_model,encrypted_api_key,cached_prefix,profiles(email,paid),cached_prompts(prompt_hash,encrypted_prompt,last_used_at)`, {
           headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}` }
         });
         const gateways = await res.json();
@@ -931,15 +1008,29 @@ export default {
           if (!gw.profiles?.paid || !gw.encrypted_api_key) continue;
           try {
             const rawKey = await decryptKey(gw.encrypted_api_key, env.ENCRYPTION_SECRET);
-            let cachedSystemPrompt = null;
-            if (gw.cached_prefix) {
-              try { cachedSystemPrompt = await decryptKey(gw.cached_prefix, env.ENCRYPTION_SECRET); } catch { /* skip */ }
+            
+            const cachedPrompts = new Map();
+            for (const p of gw.cached_prompts || []) {
+              try {
+                const decrypted = await decryptKey(p.encrypted_prompt, env.ENCRYPTION_SECRET);
+                cachedPrompts.set(p.prompt_hash, { decrypted, lastUsedAt: p.last_used_at });
+              } catch { /* skip */ }
             }
+            
+            // Fallback for legacy cached_prefix column
+            if (cachedPrompts.size === 0 && gw.cached_prefix) {
+              try {
+                const decrypted = await decryptKey(gw.cached_prefix, env.ENCRYPTION_SECRET);
+                const hash = await getPromptHash(decrypted);
+                cachedPrompts.set(hash, { decrypted, lastUsedAt: gw.updated_at });
+              } catch { /* skip */ }
+            }
+            
             const hash = gw.gateway_id.replace("ae_live_", "");
             keyVault.set(hash, {
               email: gw.profiles.email, model: gw.active_model, rawKey,
               keyPreview: rawKey.substring(0, 8) + "...",
-              cachedSystemPrompt,
+              cachedPrompts,
               protectionActive: true, lastUpdated: new Date()
             });
           } catch { /* skip un-decryptable */ }
@@ -969,98 +1060,121 @@ export default {
         continue;
       }
 
-      try {
-        let pingUrl, pingHeaders, pingBody;
-        const sysPrompt = config.cachedSystemPrompt || "AetherCache keep-warm ping.";
-        const hasRealPrefix = !!config.cachedSystemPrompt;
+      if (!config.cachedPrompts) config.cachedPrompts = new Map();
+      if (config.cachedPrompts.size === 0) continue;
 
-        if (providerConfig.provider === "anthropic") {
-          pingUrl = providerConfig.endpoint;
-          pingHeaders = { "x-api-key": config.rawKey, "anthropic-version": "2023-06-01", "content-type": "application/json" };
-          pingBody = JSON.stringify({
-            model: providerConfig.apiModel, max_tokens: 1, stream: false,
-            system: [{ type: "text", text: sysPrompt, cache_control: { type: "ephemeral" } }],
-            messages: [{ role: "user", content: "keepalive" }]
-          });
-        } else if (providerConfig.provider === "openai" || providerConfig.provider === "deepseek") {
-          pingUrl = providerConfig.endpoint;
-          pingHeaders = { "Authorization": `Bearer ${config.rawKey}`, "Content-Type": "application/json" };
-          pingBody = JSON.stringify({
-            model: providerConfig.apiModel, max_tokens: 1, stream: false,
-            messages: [
-              ...(hasRealPrefix ? [{ role: "system", content: sysPrompt }] : []),
-              { role: "user", content: "keepalive" }
-            ]
-          });
-        } else if (providerConfig.provider === "google") {
-          pingUrl = `${providerConfig.endpoint}/models/${providerConfig.apiModel}:generateContent?key=${config.rawKey}`;
-          pingHeaders = { "Content-Type": "application/json" };
-          const geminiBody = { contents: [{ role: "user", parts: [{ text: "keepalive" }] }], generationConfig: { maxOutputTokens: 1 } };
-          if (hasRealPrefix) geminiBody.systemInstruction = { parts: [{ text: sysPrompt }] };
-          pingBody = JSON.stringify(geminiBody);
-        } else {
+      // Loop through and keep warm all active system prompts cached on this gateway
+      for (const [promptHash, promptInfo] of config.cachedPrompts.entries()) {
+        const sysPrompt = typeof promptInfo === "string" ? promptInfo : promptInfo.decrypted;
+        const lastUsedAtStr = typeof promptInfo === "string" ? config.lastUpdated : promptInfo.lastUsedAt;
+        const lastUsedTime = new Date(lastUsedAtStr).getTime();
+        const idleTime = Date.now() - lastUsedTime;
+
+        // A. Dynamic Cooldown Filter:
+        // Skip heartbeat if a real user request kept the cache warm recently.
+        const cooldownThreshold = isClaude ? 3.5 * 60 * 1000 : 7.5 * 60 * 1000;
+        if (idleTime <= cooldownThreshold) {
+          console.log(`[AetherPing 🟢] Skipping ping for ${config.keyPreview} prompt ${promptHash.substring(0, 8)}: active client traffic detected inside cooldown window (${Math.round(idleTime / 1000)}s ago)`);
           continue;
         }
 
-        const pingRes = await fetch(pingUrl, { method: "POST", headers: pingHeaders, body: pingBody });
-
-        if (pingRes.ok) {
-          console.log(`[AetherPing 🟢] Heartbeat OK for ${config.keyPreview} (${config.model}) | prefix=${hasRealPrefix ? sysPrompt.length + 'chars' : 'generic'}`);
-        } else {
-          const errText = await pingRes.text();
-          console.error(`[AetherPing 🔴] Failed for ${config.keyPreview}: ${pingRes.status} ${errText.substring(0, 100)}`);
-          // Disable protection if key is invalid
-          if (pingRes.status === 401 || pingRes.status === 403) {
-            config.protectionActive = false;
-            console.error(`[AetherPing 🔴] Disabled keep-warm: API key invalid or expired.`);
-          }
+        // B. 24h Expiration filter:
+        // We only warm prompts that have been active/used within the last 24 hours.
+        if (idleTime >= 24 * 60 * 60 * 1000) {
+          console.log(`[AetherPing 🟡] Skipping ping for ${config.keyPreview} prompt ${promptHash.substring(0, 8)}: idle for over 24h (cache cooled down)`);
+          continue;
         }
-      } catch (err) {
-        console.error(`[AetherPing ❌] Error for ${config.keyPreview}: ${err.message}`);
+
+        try {
+          let pingUrl, pingHeaders, pingBody;
+
+          if (providerConfig.provider === "anthropic") {
+            pingUrl = providerConfig.endpoint;
+            pingHeaders = { "x-api-key": config.rawKey, "anthropic-version": "2023-06-01", "content-type": "application/json" };
+            pingBody = JSON.stringify({
+              model: providerConfig.apiModel, max_tokens: 1, stream: false,
+              system: [{ type: "text", text: sysPrompt, cache_control: { type: "ephemeral" } }],
+              messages: [{ role: "user", content: "keepalive" }]
+            });
+          } else if (providerConfig.provider === "openai" || providerConfig.provider === "deepseek") {
+            pingUrl = providerConfig.endpoint;
+            pingHeaders = { "Authorization": `Bearer ${config.rawKey}`, "Content-Type": "application/json" };
+            pingBody = JSON.stringify({
+              model: providerConfig.apiModel, max_tokens: 1, stream: false,
+              messages: [
+                { role: "system", content: sysPrompt },
+                { role: "user", content: "keepalive" }
+              ]
+            });
+          } else if (providerConfig.provider === "google") {
+            pingUrl = `${providerConfig.endpoint}/models/${providerConfig.apiModel}:generateContent?key=${config.rawKey}`;
+            pingHeaders = { "Content-Type": "application/json" };
+            const geminiBody = { 
+              contents: [{ role: "user", parts: [{ text: "keepalive" }] }], 
+              systemInstruction: { parts: [{ text: sysPrompt }] },
+              generationConfig: { maxOutputTokens: 1 } 
+            };
+            pingBody = JSON.stringify(geminiBody);
+          } else {
+            continue;
+          }
+
+          const pingRes = await fetch(pingUrl, { method: "POST", headers: pingHeaders, body: pingBody });
+
+          if (pingRes.ok) {
+            console.log(`[AetherPing 🟢] Heartbeat OK for ${config.keyPreview} (${config.model}) | prompt=${promptHash.substring(0, 8)}`);
+          } else {
+            const errText = await pingRes.text();
+            console.error(`[AetherPing 🔴] Failed for ${config.keyPreview} prompt ${promptHash.substring(0, 8)}: ${pingRes.status} ${errText.substring(0, 100)}`);
+            if (pingRes.status === 401 || pingRes.status === 403) {
+              config.protectionActive = false;
+              console.error(`[AetherPing 🔴] Disabled keep-warm: API key invalid or expired.`);
+              break;
+            }
+          }
+        } catch (err) {
+          console.error(`[AetherPing ❌] Error for ${config.keyPreview} prompt ${promptHash.substring(0, 8)}: ${err.message}`);
+        }
       }
     }
   }
 };
 
 // ============================================================================
-// Utility: Telemetry Sync
+// Utility: Telemetry Sync (Atomic RPC Integration)
 // ============================================================================
 
-async function syncTelemetry(env, gatewayId, modelAlias, usage) {
+async function syncTelemetry(env, gatewayId, modelAlias, usage, promptHash = null, encryptedPrompt = null) {
   if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) return;
 
   try {
-    const selectRes = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?gateway_id=eq.${gatewayId}&select=total_requests,prompt_tokens,cached_prompt_tokens,cost_without_caching,cost_with_caching`, {
-      headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}` }
-    });
-
-    if (!selectRes.ok) return;
-    const gates = await selectRes.json();
-    if (!gates?.length) return;
-
-    const gate = gates[0];
     const costs = calculateCosts(modelAlias, usage);
 
-    const patch = {
-      total_requests: (gate.total_requests || 0) + 1,
-      prompt_tokens: (gate.prompt_tokens || 0) + costs.inputTokens,
-      cached_prompt_tokens: (gate.cached_prompt_tokens || 0) + costs.cachedTokens,
-      cost_without_caching: Number(gate.cost_without_caching || 0) + costs.costWithout,
-      cost_with_caching: Number(gate.cost_with_caching || 0) + costs.costWith,
-      updated_at: new Date()
-    };
-
-    await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?gateway_id=eq.${gatewayId}`, {
-      method: "PATCH",
+    // Call the Supabase PostgreSQL atomic RPC function
+    const rpcRes = await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/sync_prompt_telemetry`, {
+      method: "POST",
       headers: {
         "apikey": env.SUPABASE_ANON_KEY,
         "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}`,
-        "Content-Type": "application/json", "Prefer": "return=minimal"
+        "Content-Type": "application/json"
       },
-      body: JSON.stringify(patch)
+      body: JSON.stringify({
+        p_gateway_id: gatewayId,
+        p_prompt_hash: promptHash,
+        p_encrypted_prompt: encryptedPrompt,
+        p_prompt_tokens: costs.inputTokens,
+        p_cached_prompt_tokens: costs.cachedTokens,
+        p_cost_without: costs.costWithout,
+        p_cost_with: costs.costWith
+      })
     });
 
-    console.log(`[📊 Telemetry] ${gatewayId}: +${costs.inputTokens} tokens, cached=${costs.cachedTokens}, cost=$${costs.costWith.toFixed(6)} (saved $${(costs.costWithout - costs.costWith).toFixed(6)})`);
+    if (rpcRes.ok) {
+      console.log(`[📊 Telemetry] ${gatewayId}: Atomic sync complete. Prompt=${promptHash ? promptHash.substring(0, 8) : 'none'} | saved=$${(costs.costWithout - costs.costWith).toFixed(6)}`);
+    } else {
+      const errText = await rpcRes.text();
+      console.error(`[📊 Telemetry Sync Error]: Supabase returned ${rpcRes.status}: ${errText}`);
+    }
   } catch (err) {
     console.error("[Telemetry Sync Error]:", err.message);
   }
