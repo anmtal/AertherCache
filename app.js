@@ -163,123 +163,187 @@ document.addEventListener('DOMContentLoaded', () => {
     let userProfileState = null;
 
     // --- Authentication & Workspace state swapping ---
-    async function checkLoginState() {
-        if (!supabase) {
-            runLocalMockLoginState();
-            return;
-        }
+    // --- Unified Database and Local Mock Service Abstraction ---
+    const DBService = {
+        isSupabase() {
+            return !!supabase && localStorage.getItem('aether_user') !== null;
+        },
 
-        try {
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            
-            if (sessionError) throw sessionError;
-
-            if (session) {
-                const loggedInUser = session.user.email;
-                localStorage.setItem('aether_user', loggedInUser);
-                loginBtn.style.display = 'none';
-                userProfile.style.display = 'flex';
-                userEmailText.textContent = loggedInUser;
-                document.querySelector('.user-avatar').textContent = loggedInUser.charAt(0).toUpperCase();
-
-                // 1. Fetch user profile from Supabase profiles table
-                let { data: profile, error: profileError } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', session.user.id)
-                    .maybeSingle();
-
-                if (profileError) {
-                    console.warn("Profiles table query failed, falling back to auto-seed trigger simulation.");
-                }
-
-                // 2. Resilient Auto-Seed: If profile doesn't exist yet, insert a default profile
-                if (!profile) {
-                    try {
-                        const { data: newProfile, error: seedError } = await supabase
-                            .from('profiles')
-                            .insert({
-                                id: session.user.id,
-                                email: loggedInUser,
-                                paid: false,
-                                plan_tier: 'free'
-                            })
-                            .select()
-                            .single();
-                        if (!seedError) {
-                            profile = newProfile;
-                        }
-                    } catch (seedEx) {
-                        console.warn("Profiles auto-seed bypassed:", seedEx.message);
-                    }
-                }
-
-                userProfileState = profile || { id: session.user.id, email: loggedInUser, paid: false, plan_tier: 'free' };
-                const isPaid = !!userProfileState.paid;
-                const planTier = userProfileState.plan_tier || 'free';
-                
-                localStorage.setItem('aether_paid', isPaid ? 'true' : 'false');
-                localStorage.setItem('aether_plan_tier', planTier);
-
-                // 3. Fetch all gateways associated with this user (joined with cached_prompts)
-                let gateways = [];
+        async getUserProfile() {
+            if (this.isSupabase()) {
                 try {
-                    const { data: dbGateways, error: gatewaysError } = await supabase
-                        .from('gateways')
-                        .select('*, cached_prompts(*)')
-                        .eq('user_id', session.user.id);
-                    if (!gatewaysError && dbGateways) {
-                        gateways = dbGateways;
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (!session) return null;
+                    
+                    let { data: profile, error: profileError } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', session.user.id)
+                        .maybeSingle();
+
+                    if (profileError) {
+                        console.warn("Profiles query failed, trying to auto-seed.");
                     }
-                } catch (gatewaysEx) {
-                    console.warn("Gateways query failed, initializing empty list.");
-                }
 
-                userGateways = gateways;
-
-                if (isPaid) {
-                    if (headerNav) headerNav.style.display = 'flex';
-                    switchView('dashboard');
-                    
-                    // Show standard header badges
-                    headerStatusContainer.style.display = 'block';
-                    headerStatusContainer.innerHTML = `<div class="active-badge-glowing"><span class="pulse-dot"></span><span>${planTier.toUpperCase()} Plan Connected</span></div>`;
-                    
-                    renderGatewaysTable(userGateways, planTier);
-                    updateQuotaProgressBar(userGateways.length, planTier);
-                } else {
-                    if (headerNav) headerNav.style.display = 'none';
-                    landingPageContainer.style.display = 'block';
-                    clientDashboardContainer.style.display = 'none';
-                    headerStatusContainer.style.display = 'block';
-                    headerStatusContainer.innerHTML = '<span class="unpaid-badge">● Sandbox (Unpaid)</span>';
-                    
-                    if (userGateways.length > 0 && userGateways[0].encrypted_api_key) {
-                        apiKeyInput.value = '••••••••••••••••••••';
+                    if (!profile) {
+                        try {
+                            const { data: newProfile } = await supabase
+                                .from('profiles')
+                                .insert({
+                                    id: session.user.id,
+                                    email: session.user.email,
+                                    paid: false,
+                                    plan_tier: 'free'
+                                })
+                                .select()
+                                .single();
+                            profile = newProfile;
+                        } catch (seedEx) {
+                            console.warn("Auto-seed profile bypassed:", seedEx.message);
+                        }
                     }
-                }
 
-                // Check if there is a pending plan to checkout after login completes
-                const pendingPlan = localStorage.getItem('pending_checkout_plan');
-                if (pendingPlan) {
-                    localStorage.removeItem('pending_checkout_plan');
-                    const btn = document.querySelector(`.plan-action-btn[data-plan="${pendingPlan}"]`);
-                    triggerStripeCheckout(pendingPlan, loggedInUser, btn);
+                    return profile || { id: session.user.id, email: session.user.email, paid: false, plan_tier: 'free' };
+                } catch (e) {
+                    console.error("Supabase profile fetch error:", e);
+                    return null;
                 }
             } else {
-                runLocalMockLoginState(true); // Forces clearing logged out states
+                const email = localStorage.getItem('aether_user');
+                if (!email) return null;
+                const paid = localStorage.getItem('aether_paid') === 'true';
+                const plan_tier = localStorage.getItem('aether_plan_tier') || 'free';
+                return { email, paid, plan_tier };
             }
-        } catch (err) {
-            console.error('Supabase Session Fetch Error, falling back to simulation:', err.message);
-            runLocalMockLoginState();
+        },
+
+        async fetchGateways(userId) {
+            if (this.isSupabase()) {
+                const { data, error } = await supabase
+                    .from('gateways')
+                    .select('*, cached_prompts(*)')
+                    .eq('user_id', userId);
+                if (error) throw error;
+                return data || [];
+            } else {
+                let mockGatesRaw = localStorage.getItem('aether_mock_gateways');
+                if (!mockGatesRaw) {
+                    const defaultMock = [
+                        {
+                            gateway_id: "ae_live_8f9c2a",
+                            name: "Default Gateway",
+                            active_model: "claude-sonnet",
+                            protection_active: true,
+                            encrypted_api_key: "••••••••••••••••••••",
+                            created_at: new Date().toISOString(),
+                            cached_prompts: [
+                                {
+                                    prompt_hash: "ae_sha256_7f8a9b",
+                                    encrypted_prompt: "aes256_gcm_sys_prompt_1",
+                                    total_requests: 420,
+                                    prompt_tokens: 2100000,
+                                    cached_prompt_tokens: 1575000,
+                                    cost_without_caching: 6.30,
+                                    cost_with_caching: 1.575,
+                                    last_used_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+                                    created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+                                    mock_decrypted: "You are a helpful customer support agent for AetherCache Inc. Be professional, direct, and highlight our caching optimizations."
+                                },
+                                {
+                                    prompt_hash: "ae_sha256_1c2d3e",
+                                    encrypted_prompt: "aes256_gcm_sys_prompt_2",
+                                    total_requests: 85,
+                                    prompt_tokens: 850000,
+                                    cached_prompt_tokens: 637500,
+                                    cost_without_caching: 2.55,
+                                    cost_with_caching: 0.6375,
+                                    last_used_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+                                    created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+                                    mock_decrypted: "You are a legal document analyzer specialized in SaaS terms of service. Extract and cross-examine liability and compliance sections."
+                                }
+                            ]
+                        }
+                    ];
+                    localStorage.setItem('aether_mock_gateways', JSON.stringify(defaultMock));
+                    return defaultMock;
+                }
+                return JSON.parse(mockGatesRaw);
+            }
+        },
+
+        async saveGateway(gateId, name, model, key, heartbeat, profile) {
+            if (this.isSupabase()) {
+                const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                const backendBase = isLocalHost 
+                    ? 'http://localhost:3000'
+                    : 'https://aethercache-gateway.arthercache.workers.dev';
+
+                const edgeRes = await fetch(`${backendBase}/api/v1/key/vault`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        key: key,
+                        email: profile.email,
+                        model: model,
+                        protectionActive: heartbeat,
+                        gatewayId: gateId || undefined,
+                        name: name
+                    })
+                });
+                const edgeData = await edgeRes.json();
+                if (!edgeRes.ok || !edgeData.success) {
+                    throw new Error(edgeData.message || edgeData.error || 'Failed to sync with Cloudflare Edge Worker.');
+                }
+                return edgeData;
+            } else {
+                let list = await this.fetchGateways();
+                let finalGateId = gateId;
+                if (gateId) {
+                    const idx = list.findIndex(g => g.gateway_id === gateId);
+                    if (idx !== -1) {
+                        list[idx].name = name;
+                        list[idx].active_model = model;
+                        list[idx].protection_active = heartbeat;
+                        if (key !== '__KEEP_EXISTING_KEY__') {
+                            list[idx].encrypted_api_key = '••••••••••••••••••••';
+                        }
+                    }
+                } else {
+                    const hex = Math.random().toString(16).substring(2, 8);
+                    finalGateId = `ae_live_${hex}`;
+                    const newGate = {
+                        gateway_id: finalGateId,
+                        name: name,
+                        active_model: model,
+                        protection_active: heartbeat,
+                        encrypted_api_key: '••••••••••••••••••••',
+                        created_at: new Date().toISOString(),
+                        cached_prompts: []
+                    };
+                    list.push(newGate);
+                }
+                localStorage.setItem('aether_mock_gateways', JSON.stringify(list));
+                return { success: true, gatewayId: finalGateId };
+            }
+        },
+
+        async deleteGateway(gateId) {
+            if (this.isSupabase()) {
+                const { error } = await supabase
+                    .from('gateways')
+                    .delete()
+                    .eq('gateway_id', gateId);
+                if (error) throw error;
+            } else {
+                let list = await this.fetchGateways();
+                list = list.filter(g => g.gateway_id !== gateId);
+                localStorage.setItem('aether_mock_gateways', JSON.stringify(list));
+            }
         }
-    }
+    };
 
-    function runLocalMockLoginState(forceLogout = false) {
-        const loggedInUser = forceLogout ? null : localStorage.getItem('aether_user');
-        const isPaid = forceLogout ? false : localStorage.getItem('aether_paid') === 'true';
-        const planTier = forceLogout ? 'free' : localStorage.getItem('aether_plan_tier') || 'startup';
-
+    // --- Authentication & Workspace state swapping ---
+    async function checkLoginState(forceLogout = false) {
         if (forceLogout) {
             localStorage.removeItem('aether_user');
             localStorage.removeItem('aether_paid');
@@ -288,63 +352,44 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.removeItem('aether_key_vaulted');
         }
 
-        if (loggedInUser) {
+        // Initialize user email from session if logged in but localstorage empty
+        if (supabase && !localStorage.getItem('aether_user')) {
+            try {
+                const sessionData = await supabase.auth.getSession();
+                if (sessionData.data.session) {
+                    localStorage.setItem('aether_user', sessionData.data.session.user.email);
+                }
+            } catch (e) {}
+        }
+
+        const profile = await DBService.getUserProfile();
+
+        if (profile) {
+            userProfileState = profile;
+            localStorage.setItem('aether_user', profile.email);
+            localStorage.setItem('aether_paid', profile.paid ? 'true' : 'false');
+            localStorage.setItem('aether_plan_tier', profile.plan_tier || 'free');
+
             loginBtn.style.display = 'none';
             userProfile.style.display = 'flex';
-            userEmailText.textContent = loggedInUser;
-            document.querySelector('.user-avatar').textContent = loggedInUser.charAt(0).toUpperCase();
-            
-            // In local mock mode, load gateways from localStorage
-            let mockGatesRaw = localStorage.getItem('aether_mock_gateways');
-            if (!mockGatesRaw) {
-                userGateways = [
-                    {
-                        gateway_id: "ae_live_8f9c2a",
-                        name: "Default Gateway",
-                        active_model: "claude-sonnet",
-                        protection_active: true,
-                        encrypted_api_key: "••••••••••••••••••••",
-                        created_at: new Date().toISOString(),
-                        cached_prompts: [
-                            {
-                                prompt_hash: "ae_sha256_7f8a9b",
-                                encrypted_prompt: "aes256_gcm_sys_prompt_1",
-                                total_requests: 420,
-                                prompt_tokens: 2100000,
-                                cached_prompt_tokens: 1575000,
-                                cost_without_caching: 6.30,
-                                cost_with_caching: 1.575,
-                                last_used_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-                                created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-                                mock_decrypted: "You are a helpful customer support agent for AetherCache Inc. Be professional, direct, and highlight our caching optimizations."
-                            },
-                            {
-                                prompt_hash: "ae_sha256_1c2d3e",
-                                encrypted_prompt: "aes256_gcm_sys_prompt_2",
-                                total_requests: 85,
-                                prompt_tokens: 850000,
-                                cached_prompt_tokens: 637500,
-                                cost_without_caching: 2.55,
-                                cost_with_caching: 0.6375,
-                                last_used_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-                                created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-                                mock_decrypted: "You are a legal document analyzer specialized in SaaS terms of service. Extract and cross-examine liability and compliance sections."
-                            }
-                        ]
-                    }
-                ];
-                localStorage.setItem('aether_mock_gateways', JSON.stringify(userGateways));
-            } else {
-                userGateways = JSON.parse(mockGatesRaw);
-            }
+            userEmailText.textContent = profile.email;
+            document.querySelector('.user-avatar').textContent = profile.email.charAt(0).toUpperCase();
+
+            // Fetch user gateways
+            userGateways = await DBService.fetchGateways(profile.id);
+
+            const isPaid = !!profile.paid;
+            const planTier = profile.plan_tier || 'free';
 
             if (isPaid) {
                 if (headerNav) headerNav.style.display = 'flex';
                 switchView('dashboard');
                 
                 headerStatusContainer.style.display = 'block';
-                headerStatusContainer.innerHTML = `<div class="active-badge-glowing"><span class="pulse-dot"></span><span>${planTier.toUpperCase()} Plan (Simulation)</span></div>`;
-
+                headerStatusContainer.innerHTML = DBService.isSupabase()
+                    ? `<div class="active-badge-glowing"><span class="pulse-dot"></span><span>${planTier.toUpperCase()} Plan Connected</span></div>`
+                    : `<div class="active-badge-glowing"><span class="pulse-dot"></span><span>${planTier.toUpperCase()} Plan (Simulation)</span></div>`;
+                
                 renderGatewaysTable(userGateways, planTier);
                 updateQuotaProgressBar(userGateways.length, planTier);
             } else {
@@ -352,20 +397,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 landingPageContainer.style.display = 'block';
                 clientDashboardContainer.style.display = 'none';
                 headerStatusContainer.style.display = 'block';
-                headerStatusContainer.innerHTML = '<span class="unpaid-badge">● Sandbox (Simulation)</span>';
+                headerStatusContainer.innerHTML = DBService.isSupabase()
+                    ? '<span class="unpaid-badge">● Sandbox (Unpaid)</span>'
+                    : '<span class="unpaid-badge">● Sandbox (Simulation)</span>';
                 
-                const savedKey = localStorage.getItem('aether_key_vaulted');
-                if (savedKey) {
-                    apiKeyInput.value = savedKey;
+                if (userGateways.length > 0 && userGateways[0].encrypted_api_key) {
+                    apiKeyInput.value = '••••••••••••••••••••';
                 }
             }
 
-            // Check if there is a pending plan to checkout in mock state
+            // Check if there is a pending plan to checkout after login completes
             const pendingPlan = localStorage.getItem('pending_checkout_plan');
             if (pendingPlan) {
                 localStorage.removeItem('pending_checkout_plan');
                 const btn = document.querySelector(`.plan-action-btn[data-plan="${pendingPlan}"]`);
-                triggerStripeCheckout(pendingPlan, loggedInUser, btn);
+                triggerStripeCheckout(pendingPlan, profile.email, btn);
             }
         } else {
             loginBtn.style.display = 'block';
@@ -962,33 +1008,12 @@ document.addEventListener('DOMContentLoaded', () => {
             // 1. Quota Check for NEW gateway creation
             if (!gateId) {
                 const count = userGateways.length;
+                const limits = { free: 1, startup: 1, growth: 2, scale: 5 };
+                const limit = limits[planTier] || 1;
                 
-                if (planTier === 'free' && count >= 1) {
-                    alert(`🚫 Active prompt limit reached (1/1) for Free sandbox.\n\nPlease upgrade to the Startup plan to unlock more active prompt gateways!`);
-                    const pricingSec = document.querySelector('.pricing-section');
-                    if (pricingSec) pricingSec.scrollIntoView({ behavior: 'smooth' });
-                    closeGatewayModal();
-                    return;
-                }
-                
-                if (planTier === 'startup' && count >= 1) {
-                    alert(`🚫 Active prompt limit reached (1/1) for Startup plan.\n\nPlease upgrade to the Growth plan to unlock up to 2 active prompt gateways!`);
-                    const pricingSec = document.querySelector('.pricing-section');
-                    if (pricingSec) pricingSec.scrollIntoView({ behavior: 'smooth' });
-                    closeGatewayModal();
-                    return;
-                }
-
-                if (planTier === 'growth' && count >= 2) {
-                    alert(`🚫 Active prompt limit reached (2/2) for Growth plan.\n\nPlease upgrade to the Scale plan to unlock up to 5 active prompt gateways!`);
-                    const pricingSec = document.querySelector('.pricing-section');
-                    if (pricingSec) pricingSec.scrollIntoView({ behavior: 'smooth' });
-                    closeGatewayModal();
-                    return;
-                }
-
-                if (planTier === 'scale' && count >= 5) {
-                    alert(`🚫 Active prompt limit reached (5/5) for Scale plan.\n\nPlease upgrade to the Enterprise plan for unlimited active prompt gateways!`);
+                if (planTier !== 'enterprise' && count >= limit) {
+                    const nextTier = { free: "Startup", startup: "Growth", growth: "Scale", scale: "Enterprise" }[planTier] || "Enterprise";
+                    alert(`🚫 Active prompt limit reached (${count}/${limit}) for ${planTier} plan.\n\nPlease upgrade to the ${nextTier} plan to unlock more active prompt gateways!`);
                     const pricingSec = document.querySelector('.pricing-section');
                     if (pricingSec) pricingSec.scrollIntoView({ behavior: 'smooth' });
                     closeGatewayModal();
@@ -1004,129 +1029,33 @@ document.addEventListener('DOMContentLoaded', () => {
             configSubmitBtn.disabled = true;
             configSubmitBtn.textContent = 'Vaulting...';
 
-            const isLocalHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-            const backendBase = isLocalHost 
-                ? 'http://localhost:3000'
-                : 'https://aethercache-gateway.arthercache.workers.dev';
-
-            // If Supabase client exists, run Supabase flow
-            if (supabase) {
-                try {
-                    const sessionData = await supabase.auth.getSession();
-                    const session = sessionData.data.session;
-                    
-                    if (session) {
-                        // Sync with edge worker first to secure key in-memory at edge
-                        const edgeRes = await fetch(`${backendBase}/api/v1/key/vault`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                key: key,
-                                email: loggedInUser,
-                                model: model,
-                                protectionActive: heartbeat,
-                                gatewayId: gateId || undefined,
-                                name: name
-                            })
-                        });
-                        const edgeData = await edgeRes.json();
-
-                        if (edgeRes.ok && edgeData.success) {
-                            console.log("Edge synced successfully!");
-                            closeGatewayModal();
-                            alert(`🎉 Gateway synchronized successfully!\n\nUse your dedicated endpoint URL in your application settings.`);
-                            checkLoginState(); // Reload gateways and re-render
-                        } else {
-                            if (edgeData.error === 'duplicate_key') {
-                                alert(edgeData.message);
-                                configSubmitBtn.disabled = false;
-                                configSubmitBtn.textContent = gateId ? 'Save Changes' : 'Vault & Synchronize Edge';
-                                return; // Hard Abort! Prevent fallback simulation save
-                            }
-                            throw new Error(edgeData.message || edgeData.error || 'Failed to sync with Cloudflare Edge Worker.');
-                        }
-                    } else {
-                        throw new Error("No active session found.");
-                    }
-                } catch (err) {
-                    console.error("DB Sync Error:", err);
-                    alert("Error saving gateway: " + err.message + "\nRunning in simulation mode.");
-                    runMockGatewaySave(gateId, name, model, key, heartbeat);
-                } finally {
-                    configSubmitBtn.disabled = false;
+            try {
+                const result = await DBService.saveGateway(gateId, name, model, key, heartbeat, userProfileState);
+                if (result.success) {
+                    closeGatewayModal();
+                    alert(`🎉 Gateway synchronized successfully!\n\nUse your dedicated endpoint URL in your application settings.`);
+                    await checkLoginState(); // Reload gateways and re-render
                 }
-            } else {
-                // Run simulation fallback
-                runMockGatewaySave(gateId, name, model, key, heartbeat);
+            } catch (err) {
+                console.error("Save Error:", err);
+                alert("Error saving gateway: " + err.message);
+            } finally {
                 configSubmitBtn.disabled = false;
             }
         });
     }
 
-    function runMockGatewaySave(gateId, name, model, key, heartbeat) {
-        if (gateId) {
-            // Edit Gateway
-            const idx = userGateways.findIndex(g => g.gateway_id === gateId);
-            if (idx !== -1) {
-                userGateways[idx].name = name;
-                userGateways[idx].active_model = model;
-                userGateways[idx].protection_active = heartbeat;
-                if (key !== '__KEEP_EXISTING_KEY__') {
-                    userGateways[idx].encrypted_api_key = '••••••••••••••••••••';
-                }
-            }
-        } else {
-            // Create Gateway
-            const hex = Math.random().toString(16).substring(2, 8);
-            const newGate = {
-                gateway_id: `ae_live_${hex}`,
-                name: name,
-                active_model: model,
-                protection_active: heartbeat,
-                encrypted_api_key: '••••••••••••••••••••',
-                created_at: new Date().toISOString()
-            };
-            userGateways.push(newGate);
-        }
-        
-        localStorage.setItem('aether_mock_gateways', JSON.stringify(userGateways));
-        closeGatewayModal();
-        alert(`🎉 Simulation Mode: Gateway synchronized successfully!`);
-        
-        const planTier = localStorage.getItem('aether_plan_tier') || 'startup';
-        renderGatewaysTable(userGateways, planTier);
-        updateQuotaProgressBar(userGateways.length, planTier);
-    }
-
     async function deleteGateway(gateId) {
-        if (supabase) {
+        if (confirm(`Are you sure you want to permanently delete this gateway?`)) {
             try {
-                const { error } = await supabase
-                    .from('gateways')
-                    .delete()
-                    .eq('gateway_id', gateId);
-                
-                if (error) throw error;
-                
+                await DBService.deleteGateway(gateId);
                 alert("Gateway deleted successfully.");
-                checkLoginState();
+                await checkLoginState();
             } catch (err) {
                 console.error("Failed to delete gateway:", err.message);
-                runMockGatewayDelete(gateId);
+                alert("Error deleting gateway: " + err.message);
             }
-        } else {
-            runMockGatewayDelete(gateId);
         }
-    }
-
-    function runMockGatewayDelete(gateId) {
-        userGateways = userGateways.filter(g => g.gateway_id !== gateId);
-        localStorage.setItem('aether_mock_gateways', JSON.stringify(userGateways));
-        alert("Simulation Mode: Gateway deleted successfully.");
-        
-        const planTier = localStorage.getItem('aether_plan_tier') || 'startup';
-        renderGatewaysTable(userGateways, planTier);
-        updateQuotaProgressBar(userGateways.length, planTier);
     }
 
     function escapeHtml(str) {

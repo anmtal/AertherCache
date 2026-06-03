@@ -35,6 +35,55 @@ async function getPromptHash(text) {
   return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
+async function checkRateLimit(request, gatewayId, ctx) {
+  if (typeof caches === "undefined" || !caches.default) {
+    return false; // Skip if Cache API is unavailable
+  }
+  try {
+    const cache = caches.default;
+    const ip = request.headers.get("CF-Connecting-IP") || "127.0.0.1";
+    // Cache Key must be a valid GET Request url to be cacheable
+    const cacheUrl = `http://rate-limit.local/gateways/${gatewayId}/ips/${ip}`;
+    const cacheKey = new Request(cacheUrl, { method: "GET" });
+    
+    const cachedResponse = await cache.match(cacheKey);
+    if (!cachedResponse) {
+      const response = new Response("1", {
+        headers: {
+          "Content-Type": "text/plain",
+          "Cache-Control": "max-age=60",
+          "X-Rate-Limit-Start": Date.now().toString()
+        }
+      });
+      ctx.waitUntil(cache.put(cacheKey, response));
+      return false;
+    }
+    
+    const count = parseInt(await cachedResponse.text(), 10) || 0;
+    if (count >= 120) {
+      return true; // Limit hit
+    }
+    
+    const startStr = cachedResponse.headers.get("X-Rate-Limit-Start");
+    const startTime = startStr ? parseInt(startStr, 10) : Date.now();
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const remainingTtl = Math.max(60 - elapsed, 1);
+    
+    const nextResponse = new Response((count + 1).toString(), {
+      headers: {
+        "Content-Type": "text/plain",
+        "Cache-Control": `max-age=${remainingTtl}`,
+        "X-Rate-Limit-Start": startTime.toString()
+      }
+    });
+    ctx.waitUntil(cache.put(cacheKey, nextResponse));
+    return false;
+  } catch (e) {
+    console.error("[Rate Limit Error]:", e.message);
+    return false; // Fail open
+  }
+}
+
 // ============================================================================
 // Section 2: Provider Configuration & Pricing
 // ============================================================================
@@ -60,6 +109,15 @@ const MODEL_PRICING = {
   "gemini-pro":     { inputStd: 1.25,  inputCached: 0.315, cacheWrite: 0,     output: 10.00 },
   "gemini-flash":   { inputStd: 0.075, inputCached: 0.019, cacheWrite: 0,     output: 0.30  },
   "deepseek-v3":    { inputStd: 0.27,  inputCached: 0.07,  cacheWrite: 0,     output: 1.10  },
+};
+
+// Quota limits per plan tier
+const PLAN_LIMITS = {
+  "free": 1,
+  "startup": 1,
+  "growth": 2,
+  "scale": 5,
+  "enterprise": 100
 };
 
 // ============================================================================
@@ -490,6 +548,7 @@ export default {
         let activeGatewayId = gatewayId;
         let existingEncryptedKey = null;
 
+        let suspended = false;
         if (activeGatewayId) {
           // Editing: load existing encrypted key
           if (userId && env.SUPABASE_URL && env.SUPABASE_ANON_KEY) {
@@ -499,6 +558,15 @@ export default {
               });
               const gates = await checkRes.json();
               if (gates?.length > 0) existingEncryptedKey = gates[0].encrypted_api_key;
+              
+              // Evaluate quota status for editing
+              const gatewaysRes = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?user_id=eq.${userId}&select=gateway_id&order=created_at.asc`, {
+                headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}` }
+              });
+              const userGates = await gatewaysRes.json();
+              const gwIndex = userGates.findIndex(g => g.gateway_id === activeGatewayId);
+              const limit = PLAN_LIMITS[planTier] || 1;
+              suspended = gwIndex >= limit;
             } catch (err) { console.error("[Route A] Existing gateway fetch error:", err.message); }
           }
         } else {
@@ -514,8 +582,7 @@ export default {
             } catch (err) { console.error("[Supabase Gateway Count Error]:", err.message); }
           }
 
-          const limits = { free: 1, startup: 1, growth: 2, scale: 5 };
-          const limit = limits[planTier];
+          const limit = PLAN_LIMITS[planTier] || 1;
           if (limit !== undefined && existingCount >= limit) {
             const nextTier = { free: "Startup", startup: "Growth", growth: "Scale", scale: "Enterprise" }[planTier] || "Enterprise";
             return jsonResponse({
@@ -570,6 +637,7 @@ export default {
           keyPreview: rawKey ? rawKey.substring(0, 8) + "..." : "n/a",
           cachedPrompts: new Map(),
           protectionActive: !!protectionActive && isPaid,
+          suspended,
           lastUpdated: new Date()
         });
 
@@ -611,6 +679,13 @@ export default {
     if (url.pathname.startsWith("/api/v1/chat/completions/ae_live_") && request.method === "POST") {
       const gatewayId = url.pathname.split("/").pop();
       const hash = gatewayId.replace("ae_live_", "");
+
+      // Check rate limiting first
+      const isLimited = await checkRateLimit(request, gatewayId, ctx);
+      if (isLimited) {
+        return jsonResponse({ error: "rate_limited", message: "Too many requests. Limit is 120 requests per minute." }, 429);
+      }
+
       let userConfig = keyVault.get(hash);
 
       // Cold-start: restore from Supabase
@@ -629,6 +704,24 @@ export default {
               try {
                 const rawKey = await decryptKey(gw.encrypted_api_key, env.ENCRYPTION_SECRET);
                 
+                // Evaluate dynamic quota suspension
+                let suspended = false;
+                try {
+                  const allGatesRes = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?user_id=eq.${gw.user_id}&select=gateway_id&order=created_at.asc`, {
+                    headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}` }
+                  });
+                  const allGates = await allGatesRes.json();
+                  const gwIndex = allGates.findIndex(g => g.gateway_id === gatewayId);
+                  const planTier = profile.plan_tier || 'free';
+                  const limit = PLAN_LIMITS[planTier] || 1;
+                  suspended = gwIndex >= limit;
+                  if (suspended) {
+                    console.log(`[AetherProxy 🚀] Gateway ${gatewayId} dynamically suspended (index ${gwIndex} >= limit ${limit}) for user ${profile.email}`);
+                  }
+                } catch (qErr) {
+                  console.error(`[AetherProxy] Failed to query dynamic quota index: ${qErr.message}`);
+                }
+
                 // Load all decrypted cached prompts into a map
                 const cachedPrompts = new Map();
                 for (const p of gw.cached_prompts || []) {
@@ -653,10 +746,12 @@ export default {
                   email: profile.email, model: gw.active_model, rawKey,
                   keyPreview: rawKey.substring(0, 8) + "...",
                   cachedPrompts,
-                  protectionActive: gw.protection_active, lastUpdated: new Date()
+                  protectionActive: gw.protection_active,
+                  suspended,
+                  lastUpdated: new Date()
                 });
                 userConfig = keyVault.get(hash);
-                console.log(`[AetherProxy 🚀] Restored for ${profile.email} (${cachedPrompts.size} prompts loaded)`);
+                console.log(`[AetherProxy 🚀] Restored for ${profile.email} (${cachedPrompts.size} prompts loaded, suspended=${suspended})`);
               } catch (decryptErr) {
                 console.error(`[AetherProxy] Cannot decrypt key (legacy format?): ${decryptErr.message}`);
               }
@@ -667,6 +762,13 @@ export default {
 
       if (!userConfig || !userConfig.rawKey) {
         return jsonResponse({ error: "Unauthorized gateway or key unavailable. Please re-vault your API key." }, 401);
+      }
+
+      if (userConfig.suspended) {
+        return jsonResponse({
+          error: "plan_limit_exceeded",
+          message: "Gateway suspended: plan limits exceeded for the current tier. Please upgrade your subscription to reactivate."
+        }, 402);
       }
 
       let activePromptHash = null;
@@ -956,7 +1058,15 @@ export default {
             },
             body: JSON.stringify({ paid: paidStatus, plan_tier: selectedPlan, updated_at: new Date() })
           });
-          console.log(`[Webhook] Synced: ${email} → paid=${paidStatus}, plan=${selectedPlan}`);
+
+          // Evict keyVault cache entries for this user's email to force dynamic limit re-evaluation
+          for (const [h, conf] of keyVault.entries()) {
+            if (conf.email === email) {
+              keyVault.delete(h);
+            }
+          }
+
+          console.log(`[Webhook] Synced: ${email} → paid=${paidStatus}, plan=${selectedPlan}. Evicted from keyVault memory.`);
         }
 
         return jsonResponse({ received: true });
@@ -1000,12 +1110,27 @@ export default {
     // 2. If no active vaults in memory, try to restore from Supabase (with joined prompts)
     if (keyVault.size === 0 && env.SUPABASE_URL && env.SUPABASE_ANON_KEY && env.ENCRYPTION_SECRET) {
       try {
-        const res = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?protection_active=eq.true&select=gateway_id,active_model,encrypted_api_key,cached_prefix,profiles(email,paid),cached_prompts(prompt_hash,encrypted_prompt,last_used_at)`, {
+        const res = await fetch(`${env.SUPABASE_URL}/rest/v1/gateways?protection_active=eq.true&select=gateway_id,created_at,user_id,active_model,encrypted_api_key,cached_prefix,profiles(email,paid,plan_tier),cached_prompts(prompt_hash,encrypted_prompt,last_used_at)&order=created_at.asc`, {
           headers: { "apikey": env.SUPABASE_ANON_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY}` }
         });
         const gateways = await res.json();
+        const userCounts = {};
         for (const gw of (gateways || [])) {
           if (!gw.profiles?.paid || !gw.encrypted_api_key) continue;
+          
+          const userId = gw.user_id;
+          const planTier = gw.profiles.plan_tier || 'free';
+          const limit = PLAN_LIMITS[planTier] || 1;
+          
+          if (!userCounts[userId]) userCounts[userId] = 0;
+          const index = userCounts[userId];
+          userCounts[userId]++;
+          
+          if (index >= limit) {
+            console.log(`[AetherPing ⏰] Skipping restore for suspended gateway ${gw.gateway_id} of user ${gw.profiles.email} (exceeds limit ${limit})`);
+            continue;
+          }
+
           try {
             const rawKey = await decryptKey(gw.encrypted_api_key, env.ENCRYPTION_SECRET);
             
@@ -1031,7 +1156,9 @@ export default {
               email: gw.profiles.email, model: gw.active_model, rawKey,
               keyPreview: rawKey.substring(0, 8) + "...",
               cachedPrompts,
-              protectionActive: true, lastUpdated: new Date()
+              protectionActive: true,
+              suspended: false,
+              lastUpdated: new Date()
             });
           } catch { /* skip un-decryptable */ }
         }
@@ -1049,7 +1176,7 @@ export default {
     const isEightMinuteInterval = intervalIndex % 2 === 0;
 
     for (const [hash, config] of keyVault.entries()) {
-      if (!config.protectionActive || !config.rawKey) continue;
+      if (!config.protectionActive || !config.rawKey || config.suspended) continue;
 
       const providerConfig = PROVIDERS[config.model];
       if (!providerConfig) continue;
